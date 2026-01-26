@@ -9,6 +9,7 @@ import (
 
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
 	subs_http "github.com/end1essrage/efmob-tz/pkg/subs/interfaces/http"
 	"github.com/go-chi/chi/v5"
 
@@ -25,30 +26,22 @@ import (
 // @tag.name subs
 // @tag.description Subscriptions control
 func main() {
+	// зaгружаем энвы
+	cfg := LoadConfig()
+
 	//создаем инстанс логгера
-	logger := l.New(os.Getenv("SERVICE_NAME"), true, common.ENV(os.Getenv("ENV")) != common.ENV_PROD).Log("main", "main")
+	logger := l.New(cfg.ServiceName, true, common.ENV(cfg.Env) != common.ENV_PROD).Log("main", "main")
 
-	// проверяем энвы
-	if os.Getenv("ENV") == "" {
-		logger.Fatal("ENV is empty")
-	}
-	if os.Getenv("PORT") == "" {
-		logger.Fatal("PORT is empty")
-	}
-	if os.Getenv("SERVICE_NAME") == "" {
-		logger.Fatal("SERVICE_NAME is empty")
-	}
-
-	logger.Infof("запуск %s сервиса", os.Getenv("SERVICE_NAME"))
+	logger.Infof("запуск %s сервиса", cfg.Env)
 
 	//корневой контекст
 	ctx := common.Context()
 
 	//создаем роутер
-	r, cleanup := createSubsMicroservice(ctx)
+	r, cleanup := createSubsMicroservice(cfg)
 	//создаем http сервер
 	server := &http.Server{
-		Addr:              ":" + os.Getenv("PORT"),
+		Addr:              ":" + cfg.Port,
 		Handler:           r,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -64,7 +57,7 @@ func main() {
 
 	//ждем сигнала остановки
 	<-ctx.Done()
-	logger.Infof("остановка %s серёвиса", os.Getenv("SERVICE_NAME"))
+	logger.Infof("остановка %s серёвиса", cfg.ServiceName)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -73,88 +66,26 @@ func main() {
 		logger.Errorf("http shutdown error: %v", err)
 	}
 
+	// очищаем ресурсы
 	cleanup()
 }
 
-func createSubsMicroservice(ctx context.Context) (*chi.Mux, func()) {
+func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	logger := l.Logger().Log("main", "main")
 
-	/*
-		publicKey, err := crypto.LoadPublicKeyFromPEM(os.Getenv("JWT_PUBLIC_KEY_PATH"))
-		if err != nil {
-			logger.Fatal(err)
-		}
-	*/
-
 	// бд
-	//usersRepo := memory.NewUserRepository()
-	//tokenRepo := memory.NewTokenRepository()
+	repo := &DummyRepo{}
+
 	logger.Info("бд инициализирована")
 
-	// helpers
-
-	/*
-		// клиент для доступа к блэклисту
-		kvClient, err := kv.NewClient(kv.Config{
-			Addr:     os.Getenv("TOKEN_BLACKLIST_ADDR"),
-			Password: os.Getenv("TOKEN_BLACKLIST_PWD"),
-			DB:       0,
-
-			DialTimeout:  3 * time.Second,
-			ReadTimeout:  2 * time.Second,
-			WriteTimeout: 2 * time.Second,
-		})
-		if err != nil {
-			logger.Warn("KV redis unavailable", err)
-		}
-
-		// проверятель блэклиста
-		tokenBlackListChecker := common_blacklist.NewRedisTokenBlacklistChecker(kvClient)
-
-		// валидатор токенов
-		tokenValidator := common_jwt.NewJwtTokenValidator(
-			publicKey,
-			os.Getenv("JWT_ISSUER"),
-			tokenBlackListChecker)
-
-		profileRepo := memory.NewProfileRepository()
-
-	*/
-
-	/*
-		//контейнер бизнес логики
-		container := container.NewContainer(
-			profileRepo,
-		)
-		logger.Info("di контейнер собран")
-	*/
-	/*
-		// консьюмер событий
-		broker, err := broker.NewRedisStreamClient(broker.Config{
-			Addr:     os.Getenv("BROKER_ADDR"),
-			Password: os.Getenv("BROKER_PWD"),
-			DB:       0, //?
-
-			DialTimeout:  3 * time.Second,
-			ReadTimeout:  2 * time.Second,
-			WriteTimeout: 2 * time.Second,
-		})
-		if err != nil {
-			logger.Warn("BROKER redis unavailable", err)
-		}
-
-		event_subscriber := events.NewRedisUserEventSubscriber(broker, container.CreateProfileFromAuthHandler)
-
-		go func(consumer string) {
-			if err := event_subscriber.Start(ctx, consumer); err != nil {
-				logger.Error("event subscriber stopped", err)
-			}
-		}(os.Getenv("SERVICE_NAME"))
-	*/
+	//контейнер бизнес логики
+	container := container.NewContainer(repo, repo)
+	logger.Info("di контейнер собран")
 
 	//создаем хендлер
 	h := subs_http.NewSubsHandler(
 		common.ENV(os.Getenv("ENV")),
+		container,
 	)
 	logger.Info("хендлеры инициализированы")
 
@@ -166,9 +97,7 @@ func createSubsMicroservice(ctx context.Context) (*chi.Mux, func()) {
 
 	cleanup := func() {
 		//очищаем ресурсы
-
 	}
-	// подписываемся на прерывание контекста
 
 	return r, cleanup
 }

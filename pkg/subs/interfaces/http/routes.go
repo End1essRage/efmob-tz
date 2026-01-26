@@ -4,17 +4,18 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
 )
 
 type SubsHandler struct {
-	//container      *container.Container
-	//authMiddleware *middleware.AuthMiddleware
-	env common.ENV
+	container *container.Container
+	env       common.ENV
 }
 
-func NewSubsHandler(env common.ENV) *SubsHandler {
+func NewSubsHandler(env common.ENV, container *container.Container) *SubsHandler {
 	return &SubsHandler{
-		env: env,
+		env:       env,
+		container: container,
 	}
 }
 
