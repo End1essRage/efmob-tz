@@ -9,10 +9,11 @@ tasks:
     desc: "Локальный CI"
     cmds:
       - task: lint
-      # - task: swagger
-      # - task: docs
-      # - task: test
-      # - task: test-integration
+      - task: swagger
+      - task: test
+      - task: test-integration
+      - task: docs
+
       # - task: semgrep-full
 
   lint:

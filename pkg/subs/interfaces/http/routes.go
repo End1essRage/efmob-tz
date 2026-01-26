@@ -21,6 +21,15 @@ func NewSubsHandler(env common.ENV) *SubsHandler {
 // AddRoutes добавляет маршруты аутентификации
 // @Summary Add subscriptions routes
 func AddRoutes(r *chi.Mux, h *SubsHandler) {
-	// Регистрация
-	r.Get("/test", h.Test)
+	r.Route("/subscriptions", func(r chi.Router) {
+		r.Post("/", h.CreateSubscription)
+		r.Get("/", h.ListSubscriptions)
+		r.Get("/total", h.GetTotalCost)
+
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", h.GetSubscription)
+			r.Patch("/", h.UpdateSubscription)
+			r.Delete("/", h.DeleteSubscription)
+		})
+	})
 }
