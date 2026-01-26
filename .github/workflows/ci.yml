@@ -103,39 +103,30 @@ jobs:
           set -e
 
           # --------------------
-          # Prepare folders
+          # Pages root = Swagger UI
           # --------------------
-          mkdir -p public/swagger-ui public/docs
+          mkdir -p public/docs
+
+          # Swagger UI кладём прямо в корень pages
+          cp -r node_modules/swagger-ui-dist/* public/
 
           # --------------------
-          # Copy Swagger UI
+          # Copy swagger definition
           # --------------------
-          cp -r node_modules/swagger-ui-dist/* public/swagger-ui/
+          if [ ! -f "docs/subs-swagger.json" ]; then
+            echo "❌ docs/subs-swagger.json not found"
+            exit 1
+          fi
 
-          # --------------------
-          # Copy swagger specs
-          # --------------------
-          for service in $SERVICES; do
-            if [ -f "cmd/$service/docs/swagger.json" ]; then
-              cp cmd/$service/docs/swagger.json public/docs/$service-swagger.json
-            else
-              echo "❌ Swagger not found for service: $service"
-              exit 1
-            fi
-          done
+          cp docs/subs-swagger.json public/docs/subs-swagger.json
 
           # --------------------
           # Override swagger initializer
           # --------------------
-          cat > public/swagger-ui/swagger-initializer.js << 'EOF'
+          cat > public/swagger-initializer.js << 'EOF'
           window.onload = function () {
-            const params = new URLSearchParams(window.location.search);
-            const service = params.get("service") || "subs";
-
-            const specUrl = "../docs/" + service + "-swagger.json";
-
             window.ui = SwaggerUIBundle({
-              url: specUrl,
+              url: "./docs/subs-swagger.json",
               dom_id: "#swagger-ui",
               deepLinking: true,
               presets: [
@@ -148,36 +139,6 @@ jobs:
               layout: "StandaloneLayout"
             });
           };
-          EOF
-
-          # --------------------
-          # Generate index.html
-          # --------------------
-          cat > public/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <title>API Documentation</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 40px; }
-              ul { list-style: none; padding: 0; }
-              li { margin: 10px 0; }
-              a { color: #0969da; font-weight: bold; text-decoration: none; }
-              a:hover { text-decoration: underline; }
-            </style>
-          </head>
-          <body>
-            <h1>API Documentation</h1>
-            <ul>
-              <li>
-                <a href="./swagger-ui/?service=subs">
-                  Subs service
-                </a>
-              </li>
-            </ul>
-          </body>
-          </html>
           EOF
 
       - name: Upload Pages artifact
