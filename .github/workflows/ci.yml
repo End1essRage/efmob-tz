@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GO_VERSION: "1.24"
+  GOFLAGS: "-mod=readonly"
+  SERVICES: subs
+
+jobs:
+  # --------------------
+  # LINT
+  # --------------------
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.8.0
+          args: --config .golangci.ci.yml
+
+  # --------------------
+  # UNIT TESTS
+  # --------------------
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - run: go test -v -tags='!integration' ./...
+
+  # --------------------
+  # SWAGGER CHECK
+  # --------------------
+  swagger-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Generate swagger
+        run: |
+          for service in $SERVICES; do
+            swag init \
+              -g main.go \
+              -d cmd/$service,pkg/$service/interfaces/http \
+              -o cmd/$service/docs \
+              --outputTypes json,go
+          done
+
+      - name: Check diff
+        run: git diff --exit-code
+
+  # --------------------
+  # BUILD SWAGGER SITE
+  # --------------------
+  swagger-pages:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - run: npm init -y
+      - run: npm install swagger-ui-dist
+
+      - name: Build pages
+        run: |
+          mkdir -p public/swagger-ui public/docs
+          cp -r node_modules/swagger-ui-dist/* public/swagger-ui/
+
+          for service in $SERVICES; do
+            cp cmd/$service/docs/swagger.json public/docs/$service-swagger.json
+          done
+
+          cat > public/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>API Docs</title>
+          </head>
+          <body>
+            <h1>API Documentation</h1>
+            <ul>
+              <li>
+                <a href="/swagger-ui/?url=/docs/subs-swagger.json">
+                  Subs service
+                </a>
+              </li>
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  # --------------------
+  # DEPLOY PAGES
+  # --------------------
+  deploy:
+    needs: swagger-pages
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

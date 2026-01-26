@@ -1,0 +1,62 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      #- id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint (pre-commit)
+        entry: golangci-lint run --config .golangci.pre-commit.yml
+        language: system
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -w
+        language: system
+        types: [go]
+
+      - id: goimports
+        name: goimports
+        entry: goimports -w
+        language: system
+        types: [go]
+
+      - id: go-test
+        name: go test
+        entry: go test ./...
+        language: system
+        pass_filenames: false
+
+      # вынести в переменные список сервисов
+      - id: swagger-sync
+        name: swagger generate & sync
+        entry: |
+          bash -c '
+          set -e
+
+          SERVICES="subs"
+
+          for service in $SERVICES; do
+            if [ -f "cmd/$service/main.go" ]; then
+              echo "🔧 Generating swagger for $service"
+
+              swag init \
+                -g main.go \
+                -d cmd/$service,pkg/$service/interfaces/http \
+                -o cmd/$service/docs \
+                --outputTypes json,go
+
+              mkdir -p docs
+              cp cmd/$service/docs/swagger.json docs/$service-swagger.json
+              echo "📄 docs/$service-swagger.json updated"
+            fi
+          done
+          '
+        language: system
+        pass_filenames: false

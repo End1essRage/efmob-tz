@@ -1,0 +1,142 @@
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ======================
+// КОНФИГУРАЦИЯ PROMETHEUS
+// ======================
+
+// 1. Сбор метрик с приложений
+prometheus.scrape "auth_service" {
+  targets = [
+    { "__address__" = "auth:8080", "service" = "auth" },
+  ]
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "user_service" {
+  targets = [
+    { "__address__" = "user:8080", "service" = "user" },
+  ]
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+// 2. Сбор метрик с самого Alloy
+prometheus.scrape "alloy_self" {
+  targets = [
+    { "__address__" = "localhost:12345", "service" = "alloy" },
+  ]
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+// 3. Отправка метрик в Prometheus
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+
+    // Опционально: настройки отправки
+    remote_timeout = "30s"
+    headers = {
+      "X-Scope-OrgID" = "my-tenant",
+    }
+  }
+}
+
+// ======================
+// КОНФИГУРАЦИЯ LOKI (ЛОГИ)
+// ======================
+
+// 1. Обнаружение Docker контейнеров
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+discovery.relabel "logs_integrations_docker" {
+  targets = []
+
+  // keep only running containers
+  rule {
+    source_labels = ["__meta_docker_container_state"]
+    regex         = "running"
+    action        = "keep"
+  }
+
+  // keep Alloy container as well
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "alloy|auth|user"
+    action        = "keep"
+  }
+
+  // метки для логов
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "service_name"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+
+  rule {
+    source_labels = ["referer"]
+    action  = "drop"
+  }
+
+}
+
+// 2. Сбор логов из Docker
+loki.source.docker "docker_logs_collect" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+  targets = discovery.docker.containers.targets
+
+  relabel_rules = discovery.relabel.logs_integrations_docker.rules
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// 3. Loki relabel: drop the `referer` label from log entries
+loki.relabel "drop_referer" {
+  rule {
+    action = "labeldrop"
+    regex  = "referer"
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+// 4. Collect logs and apply both discovery relabel rules and loki relabel rules
+loki.source.docker "docker_logs_process" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.logs_integrations_docker.rules
+
+  // apply log-level relabeling (drop referer label)
+  forward_to = [loki.relabel.drop_referer.receiver]
+}
+
+// 5. Отправка логов в Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+
+    // Настройки отправки
+    batch_wait = "1s"
+    batch_size = "1MB"
+    remote_timeout = "10s"
+  }
+
+  external_labels = {
+    cluster = "production",
+    region = "eu-west-1",
+    source = "alloy",
+  }
+}

@@ -1,0 +1,71 @@
+services:
+  loki:
+    image: grafana/loki:3.6.3
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/loki/local-config.yaml"
+      - "--target=all"
+    ports:
+      - "3100:3100"
+      - "9096:9096"
+    volumes:
+      - ./observability/loki:/etc/loki
+      - loki_data:/loki
+    networks:
+      - app-network
+
+  alloy:
+    image: grafana/alloy:v1.12.1
+    restart: unless-stopped
+    command:
+      - "run"
+      - "--server.http.listen-addr=:12345" # Экспорт метрик Alloy
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./observability/alloy:/etc/alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/alloy
+    ports:
+      - "12345:12345"
+    networks:
+      - app-network
+    depends_on:
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v3.8.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+      - "--web.enable-remote-write-receiver" # Включаем прием от Alloy
+    volumes:
+      - ./observability/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    depends_on:
+      - prometheus
+      - loki

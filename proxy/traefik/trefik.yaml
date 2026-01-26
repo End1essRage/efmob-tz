@@ -1,0 +1,63 @@
+# Статическая конфигурация Traefik
+api:
+  dashboard: true
+  debug: true
+  insecure: false # Dashboard доступен только через роутер
+
+# Точки входа
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+
+# Провайдеры
+providers:
+  # Docker провайдер
+  docker:
+    # Для Docker Desktop Windows
+    # endpoint: "tcp://host.docker.internal:2375"
+    # Для WSL2 с Docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false # Безопасность: только с лейблами
+    network: app-network # Используемая сеть
+    watch: true # Автоматическое обновление при изменении контейнеров
+
+  # Файловый провайдер (для статической конфигурации)
+  file:
+    directory: /etc/traefik/config
+    watch: true
+
+# Сертификаты (для локальной разработки используем самоподписанные)
+#certificatesResolvers:
+#  myresolver:
+#    acme:
+#      email: admin@localhost.local # Фиктивный email для локальной разработки
+#      storage: /etc/traefik/acme.json
+#      # Для локальной разработки используем самоподписанные сертификаты
+#      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory" # Staging для тестов
+#      # Для продакшена:
+#      # caServer: "https://acme-v02.api.letsencrypt.org/directory"
+#      httpChallenge:
+#        entryPoint: web
+
+# Логирование
+log:
+  level: INFO
+  format: common
+
+accessLog: {}
+# Глобальные настройки TLS
+#tls#:
+#  stores:
+#    default:
+#      defaultCertificate:
+#        certFile: /etc/traefik/cert.crt
+#        keyFile: /etc/traefik/cert.key

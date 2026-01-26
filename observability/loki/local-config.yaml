@@ -1,0 +1,43 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-05
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Отклонять старые логи
+  reject_old_samples: true
+
+  # Максимальный возраст лога, который разрешено принимать
+  reject_old_samples_max_age: 168h # 7 дней
+
+  # Грейс-период для создания таблиц TSDB (новые логи чуть старше допустимого диапазона будут приняты)
+  creation_grace_period: 10m
+
+  # Блокировка ingestion для логов до определённого времени (RFC3339)
+  block_ingestion_until: "2026-01-05T00:00:00Z"
+
+  # HTTP код для возвращаемого ответа при блокировке (по умолчанию 260)
+  block_ingestion_status_code: 260

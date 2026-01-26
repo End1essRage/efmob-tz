@@ -1,0 +1,141 @@
+networks:
+  app-network:
+    driver: bridge
+
+# общие энвы
+x-common-env: &common-env
+  PORT: 8080
+  ENV: dev
+
+# Общие настройки для всех сервисов
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - app-network
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+    interval: 10s
+    timeout: 2s
+    retries: 5
+
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    command:
+      # Базовые команды для запуска
+      - "--api.dashboard=true"
+      - "--api.insecure=true" # Dashboard доступен по HTTP
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=app-network"
+      - "--entrypoints.web.address=:80"
+      # - "--entrypoints.websecure.address=:443"
+      - "--log.level=DEBUG" # Включаем подробные логи
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      #- "443:443"
+      - "8080:8080"
+    volumes:
+      # Discovery
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Конфигурационные файлы
+      - ./proxy/traefik:/etc/traefik
+    networks:
+      - app-network
+    labels:
+      # Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`localhost`) && PathPrefix(`/traefik`)"
+      - "traefik.http.routers.dashboard.entrypoints=web" # websecure for https
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      # Middleware для Basic Auth (пароль: admin123)
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$2y$10$XqyYI.HKpF3pW5JNpD8qB.F4Q1R9S2T3U4V5W6X7Y8Z9A0B1C2D3E4F5G6H7I"
+      # Автоматический HTTPS
+      #- "traefik.http.routers.dashboard.tls=true"
+      #- "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.9.0
+    environment:
+      BASE_URL: /swagger
+      WITH_CREDENTIALS: "true"
+      URLS_PRIMARY_NAME: Subs
+      URLS: >
+        [
+          { "url": "/subs/swagger/doc.json", "name": "Subs" }
+        ]
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+
+      # router
+      - "traefik.http.routers.swagger.rule=Host(`localhost`) && PathPrefix(`/swagger`)"
+      - "traefik.http.routers.swagger.entrypoints=web"
+      - "traefik.http.routers.swagger.service=swagger"
+
+      # service port
+      - "traefik.http.services.swagger.loadbalancer.server.port=8080"
+
+  #Tests
+  api-tests:
+    image: ghcr.io/orange-opensource/hurl:latest
+    networks:
+      - app-network
+    volumes:
+      - ./tests/:/tests:ro
+      - ./reports/:/reports
+    entrypoint: []
+    command: >
+      hurl
+      --test
+      --glob /tests/**/*.hurl
+    #      --report-junit /reports/hurl-report.xml
+    #      --report-json /reports/hurl-report.json
+    depends_on:
+      subs:
+        condition: service_healthy
+
+  # Services
+  subs:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SERVICE_NAME=subs
+    environment:
+      <<: *common-env
+      SERVICE_NAME: subs
+    labels:
+      - "traefik.enable=true"
+        # ===== API =====
+      - "traefik.http.routers.subs-api.rule=Host(`localhost`) && PathPrefix(`/subs`)"
+      - "traefik.http.routers.subs-api.entrypoints=web"
+      - "traefik.http.routers.subs-api.service=subs"
+
+      - "traefik.http.middlewares.subs-strip.stripprefix.prefixes=/subs"
+      - "traefik.http.routers.subs-api.middlewares=subs-strip"
+
+      - "traefik.http.services.subs.loadbalancer.server.port=8080"
+      # Прокси для Swagger через Traefik
+      # ===== SWAGGER =====
+      - "traefik.http.routers.subs-swagger.rule=Host(`localhost`) && PathPrefix(`/subs-swagger`)"
+      - "traefik.http.routers.subs-swagger.entrypoints=web"
+      - "traefik.http.routers.subs-swagger.service=subs-swagger"
+
+      - "traefik.http.middlewares.subs-swagger-strip.stripprefix.prefixes=/subs-swagger"
+      - "traefik.http.routers.subs-swagger.middlewares=subs-swagger-strip"
+
+      - "traefik.http.services.subs-swagger.loadbalancer.server.port=8080"
+
+# Volumes
+volumes:
+  loki_data:
+  prometheus_data:
+  grafana_data:
+  alloy_data:
+  postgres_data:

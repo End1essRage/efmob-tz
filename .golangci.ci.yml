@@ -1,0 +1,17 @@
+version: "2"
+
+extends:
+  - .golangci.base.yml
+
+run:
+  tests: false
+  go: "1.24"
+
+linters:
+  settings:
+    errcheck:
+      verbose: true
+
+issues:
+  new: true
+  new-from-merge-base: main

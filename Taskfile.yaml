@@ -1,0 +1,116 @@
+version: "3"
+
+includes:
+  ci:
+    taskfile: ./ci/Taskfile.ci.yaml
+    optional: true
+
+env:
+  ## change
+  COMPOSE_PROJECT_NAME: nosok
+  COMPOSE_FILES: |
+    docker-compose.yaml
+    ./observability/docker-compose.yaml
+    ./infrastructure/docker-compose.yaml
+
+  ## change
+  SERVICES: subs
+
+vars:
+  GOIMPORTS_VERSION: latest
+  GOLANGCI_LINT_VERSION: v2.8.0
+  SWAG_VERSION: latest
+
+  COMPOSE_FILES_FLAGS: |
+    {{- $flags := "" -}}
+    {{- range (splitList "\n" .COMPOSE_FILES) -}}
+      {{- if ne (trim .) "" -}}
+        {{- $flags = printf "%s -f %s" $flags (trim .) -}}
+      {{- end -}}
+    {{- end -}}
+    {{- trim $flags -}}
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  # --------------------
+  # SETUP
+  # --------------------
+  setup:
+    desc: "Bootstrap проекта: зависимости, линтеры, хуки"
+    cmds:
+      - task: check-go
+      - task: install-tools
+      - task: install-go-deps
+      - task: setup-precommit
+    silent: false
+
+  check-go:
+    desc: "Проверка Go"
+    cmds:
+      - go version
+
+  install-go-deps:
+    desc: "Загрузка go.mod зависимостей"
+    cmds:
+      - go mod download
+
+  install-tools:
+    desc: "Установка dev-инструментов"
+    cmds:
+      - echo "🔧 Installing goimports"
+      - go install golang.org/x/tools/cmd/goimports@{{.GOIMPORTS_VERSION}}
+
+      - echo "🔧 Installing golangci-lint"
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+
+      - echo "🔧 Installing swag"
+      - go install github.com/swaggo/swag/cmd/swag@{{.SWAG_VERSION}}
+
+      - echo "🔧 Installing semgrep"
+      - pip install semgrep
+
+  setup-precommit:
+    desc: "Установка pre-commit и git hooks"
+    cmds:
+      - |
+        if ! command -v pre-commit >/dev/null 2>&1; then
+          echo "❌ pre-commit not found"
+          echo "👉 Install it:"
+          echo "   pip install pre-commit"
+          exit 1
+        fi
+      - pre-commit install
+
+  # --------------------
+  # DEV ENV
+  # --------------------
+  up:
+    desc: "Запуск dev окружения"
+    cmds:
+      - docker compose {{.COMPOSE_FILES_FLAGS}} up --build -d
+
+  down:
+    cmds:
+      - docker compose {{.COMPOSE_FILES_FLAGS}} down
+
+  logs:
+    cmds:
+      - docker compose {{.COMPOSE_FILES_FLAGS}} logs -f
+    interactive: true
+
+  # --------------------
+  # TESTS
+  # --------------------
+  test:api:
+    desc: "Запуск API тестов (Hurl)"
+    cmds:
+      - docker compose {{.COMPOSE_FILES_FLAGS}} run --rm api-tests
+
+  e2e:
+    desc: "Перезапуск без билда для тестов апи"
+    cmds:
+      - docker compose {{.COMPOSE_FILES_FLAGS}} restart {{.SERVICES}}
+      - task test:api

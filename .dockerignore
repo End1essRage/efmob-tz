@@ -1,0 +1,36 @@
+# Git history
+.git
+.gitignore
+
+# Секреты
+/secrets
+
+# Логи и отчеты
+/reports
+
+# e2e тесты
+/tests
+
+# другие сервисы
+/observability
+/proxy
+/infrastructure
+
+#данные
+/mount_data
+
+# Taskfile.lock или локальные CI файлы
+Taskfile.lock
+
+# IDE, temp и system files
+*.swp
+*.DS_Store
+*.idea
+*.vscode
+*.log
+
+# Бинарники
+/bin
+
+###
+/.qodo

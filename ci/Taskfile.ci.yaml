@@ -1,0 +1,76 @@
+version: "3"
+
+env:
+  SWAGGER_SERVICES: |
+    subs
+
+tasks:
+  default:
+    desc: "Локальный CI"
+    cmds:
+      - task: lint
+      # - task: swagger
+      # - task: docs
+      # - task: test
+      # - task: test-integration
+      # - task: semgrep-full
+
+  lint:
+    cmds:
+      - golangci-lint run --config .golangci.ci.yml
+
+  test:
+    cmds:
+      - go test -v -tags='!integration' ./...
+
+  test-integration:
+    cmds:
+      - go test -v -tags=integration ./...
+
+  semgrep-full:
+    cmds:
+      - semgrep scan --config=auto --json  --output semgrep-full.json
+
+  swagger:
+    desc: "Генерация swagger"
+    cmds:
+      - echo "Start Swagger"
+      - |
+        {{- $services := splitList "\n" .SWAGGER_SERVICES -}}
+        {{- range $service := $services -}}
+          {{- $service = trim $service -}}
+          {{- if ne $service "" -}}
+        echo "Обрабатываю: {{$service}}"
+        powershell -Command "if (Test-Path 'cmd/{{$service}}/main.go') {swag init -g 'main.go' -d 'cmd/{{$service}},pkg/{{$service}}/interfaces/http'  -o 'cmd/{{$service}}/docs' --outputTypes json,go; Write-Host '✅ {{$service}} docs generated' } else { Write-Host '⚠️  Service {{$service}} not found' }"
+          {{- end -}}
+        {{- end -}}
+
+  docs:
+    desc: "собирает сгенерированный сваггер по всем сервисам в корневую папку"
+    cmds:
+      - |
+        {{- $services := splitList "\n" .SWAGGER_SERVICES -}}
+        {{- range $service := $services -}}
+          {{- $service = trim $service -}}
+          {{- if ne $service "" -}}
+        echo "🚀 Обрабатываю: {{$service}}"
+        powershell -Command "
+          if (Test-Path \"cmd/{{$service}}/main.go\") {
+
+            # Создаем корневую папку docs если не существует
+            if (-not (Test-Path \"docs\")) {
+              New-Item -ItemType Directory -Path \"docs\" | Out-Null
+            }
+
+            # Копируем swagger.json в корневую папку docs с именем сервиса
+            if (Test-Path cmd/{{$service}}/docs/swagger.json) {
+              Copy-Item -Path cmd/{{$service}}/docs/swagger.json -Destination docs/{{$service}}-swagger.json -Force
+              Write-Host \"📄 {{$service}}-swagger.json copied to docs/\"
+            }
+
+          } else {
+            Write-Host \"⚠️  Service $service not found\"
+          }
+        "
+          {{- end -}}
+        {{- end -}}

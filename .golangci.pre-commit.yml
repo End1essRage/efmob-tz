@@ -1,0 +1,19 @@
+version: "2"
+
+extends:
+  - .golangci.base.yml
+
+run:
+  tests: false
+
+linters:
+  disable:
+    - errcheck
+
+formatters:
+  disable:
+    - gofmt
+    - goimports
+
+issues:
+  new: false

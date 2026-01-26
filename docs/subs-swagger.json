@@ -1,0 +1,60 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "This is the subscriptions service API",
+        "title": "Subs Service API",
+        "contact": {},
+        "version": "1.0.0"
+    },
+    "host": "localhost",
+    "basePath": "/subs",
+    "paths": {
+        "/test": {
+            "get": {
+                "description": "SimpleTest",
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Test",
+                "responses": {
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "http.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Error code\nexample: VALIDATION_ERROR",
+                    "type": "string"
+                },
+                "error": {
+                    "description": "Error message\nexample: invalid request",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "Subscriptions control",
+            "name": "subs"
+        }
+    ]
+}

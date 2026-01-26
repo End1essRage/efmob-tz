@@ -1,0 +1,36 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: standard
+
+  enable:
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - revive
+    - gosimple
+    - unused
+    - misspell
+
+  disable:
+    - gocyclo
+    - funlen
+    - dupl
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    revive:
+      rules:
+        - name: var-naming
+        - name: early-return
+        - name: error-strings
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

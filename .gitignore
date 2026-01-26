@@ -1,0 +1,30 @@
+# Vendor
+/vendor
+
+# Локальные переменные среды
+.env
+
+# Данные
+/mount_data
+
+# Отчеты и логи
+/reports
+*.log
+
+# Секреты
+/secrets
+
+# IDE и system files
+*.swp
+*.DS_Store
+*.idea
+*.vscode
+
+# Бинарники
+/bin
+
+###
+/.qodo
+
+### линтинг
+semgrep-full.json
