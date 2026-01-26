@@ -45,7 +45,40 @@ jobs:
       - run: go test -v -tags='!integration' ./...
 
   # --------------------
-  # SEMGREP (SAST, PR only)
+  # INTEGRATION TESTS (PR)
+  # --------------------
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    continue-on-error: true
+
+    services:
+      docker:
+        image: docker:27-dind
+        options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install Docker Compose
+        run: |
+          docker version
+          docker compose version || sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run integration tests
+        run: |
+          go test -v -tags=integration ./pkg/subs/application/tests/...
+
+  # --------------------
+  # SEMGREP (PR)
   # --------------------
   semgrep:
     name: Semgrep SAST
