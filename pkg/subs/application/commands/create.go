@@ -26,6 +26,7 @@ func NewCreateSubscriptionHandler(repo domain.SubscriptionRepository) *CreateSub
 
 func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscriptionCommand) (*domain.Subscription, error) {
 	sub, err := domain.NewSubscription(
+		uuid.Nil,
 		cmd.UserID,
 		cmd.ServiceName,
 		cmd.Price,
@@ -38,7 +39,7 @@ func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscr
 	}
 
 	//TODO retry - на уровне реализации
-	if err := h.repo.Create(ctx, sub); err != nil {
+	if _, err := h.repo.Create(ctx, sub); err != nil {
 		// ошибка на стороне репозитория
 		return nil, err
 	}

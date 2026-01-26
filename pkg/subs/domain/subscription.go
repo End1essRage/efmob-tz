@@ -20,12 +20,16 @@ type Subscription struct {
 }
 
 func NewSubscription(
+	id uuid.UUID,
 	userID uuid.UUID,
 	serviceName string,
 	price int,
 	startDate time.Time,
 	endDate *time.Time,
 ) (*Subscription, error) {
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
 
 	if userID == uuid.Nil {
 		return nil, errors.New("user id is required")
@@ -52,7 +56,7 @@ func NewSubscription(
 	now := time.Now()
 
 	return &Subscription{
-		id:          uuid.New(),
+		id:          id,
 		userID:      userID,
 		serviceName: serviceName,
 		price:       price,

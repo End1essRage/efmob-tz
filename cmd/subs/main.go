@@ -10,8 +10,13 @@ import (
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
+	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
+	subs_repo "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 	subs_http "github.com/end1essrage/efmob-tz/pkg/subs/interfaces/http"
 	"github.com/go-chi/chi/v5"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	_ "github.com/end1essrage/efmob-tz/cmd/subs/docs"
 )
@@ -71,32 +76,69 @@ func main() {
 }
 
 func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
-	logger := l.Logger().Log("main", "main")
+	log := l.Logger().Log("main", "main")
 
 	// бд
-	repo := &DummyRepo{}
+	var repo domain.SubscriptionRepository
+	var statsRepo domain.SubscriptionStatsRepository
+	var cleanupDB func()
 
-	logger.Info("бд инициализирована")
+	if common.ENV(cfg.Env) == common.ENV_DEV {
+		memRepo := subs_repo.NewInMemorySubscriptionRepo()
+		repo = memRepo
+		statsRepo = memRepo
+	} else {
+		dsn := cfg.PostgresDSN
+		gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
+		})
+		if err != nil {
+			log.Fatalf("failed to connect to postgres: %v", err)
+		}
 
-	//контейнер бизнес логики
-	container := container.NewContainer(repo, repo)
-	logger.Info("di контейнер собран")
+		// только в ТЕСТ
+		if common.ENV(cfg.Env) == common.ENV_TEST {
+			// Авто-миграция таблицы subscriptions
+			err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
+			if err != nil {
+				log.Fatalf("failed to auto-migrate subscriptions: %v", err)
+			}
+		}
+
+		pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
+		repo = pgRepo
+		statsRepo = pgRepo
+
+		// Если нужно закрывать соединение при shutdown
+		sqlDB, err := gormDB.DB()
+		if err == nil {
+			cleanupDB = func() {
+				_ = sqlDB.Close()
+			}
+		}
+	}
+
+	di := container.NewContainer(repo, statsRepo)
+
+	log.Info("di контейнер собран")
 
 	//создаем хендлер
 	h := subs_http.NewSubsHandler(
 		common.ENV(os.Getenv("ENV")),
-		container,
+		di,
 	)
-	logger.Info("хендлеры инициализированы")
+	log.Info("хендлеры инициализированы")
 
 	//заполняем роуты
 	r := common.CreateRouter()
 
 	subs_http.AddRoutes(r, h)
-	logger.Info("роуты созданы")
+	log.Info("роуты созданы")
 
 	cleanup := func() {
-		//очищаем ресурсы
+		if cleanupDB != nil {
+			cleanupDB()
+		}
 	}
 
 	return r, cleanup

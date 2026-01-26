@@ -5,7 +5,7 @@ networks:
 # общие энвы
 x-common-env: &common-env
   PORT: 8080
-  ENV: dev
+  ENV: test
 
 # Общие настройки для всех сервисов
 x-service-defaults: &service-defaults
@@ -107,6 +107,7 @@ services:
       dockerfile: Dockerfile
       args:
         - SERVICE_NAME=subs
+        - POSTGRES_DSN="host=localhost user=postgres password=pass dbname=subs port=5432 sslmode=disable"
     environment:
       <<: *common-env
       SERVICE_NAME: subs

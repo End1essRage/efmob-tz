@@ -13,6 +13,7 @@ func TestNewSubscription_OK(t *testing.T) {
 	start := time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC)
 
 	sub, err := NewSubscription(
+		uuid.Nil,
 		userID,
 		"Yandex Plus",
 		400,
@@ -29,6 +30,7 @@ func TestNewSubscription_OK(t *testing.T) {
 
 func TestNewSubscription_InvalidPrice(t *testing.T) {
 	_, err := NewSubscription(
+		uuid.Nil,
 		uuid.New(),
 		"Netflix",
 		0,
@@ -72,6 +74,7 @@ func TestSubscription_IsActive(t *testing.T) {
 	end := time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC)
 
 	sub, _ := NewSubscription(
+		uuid.Nil,
 		uuid.New(),
 		"Test",
 		100,
@@ -88,6 +91,7 @@ func mustSubscription(t *testing.T) *Subscription {
 	t.Helper()
 
 	sub, err := NewSubscription(
+		uuid.Nil,
 		uuid.New(),
 		"Test",
 		100,
