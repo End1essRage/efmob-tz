@@ -9,6 +9,10 @@ env:
   GO_VERSION: "1.24"
   GOFLAGS: "-mod=readonly"
   SERVICES: subs
+  COMPOSE_FILES: |
+    docker-compose.yaml
+    ./observability/docker-compose.yaml
+    ./infrastructure/docker-compose.yaml
 
 jobs:
   # --------------------
@@ -52,6 +56,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'push'
 
+    env:
+      # Локальные env для этого job
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+
     steps:
       - uses: actions/checkout@v4
 
@@ -72,7 +82,7 @@ jobs:
           PORT=8080
 
           # PostgreSQL DSN для тестов
-          POSTGRES_DSN=host=postgres user=test password=test dbname=testdb port=5432 sslmode=disable
+          POSTGRES_DSN=host=postgres user=${{ env.POSTGRES_USER }} password=${{ env.POSTGRES_PASSWORD }} dbname=${{ env.POSTGRES_DB }} port=5432 sslmode=disable
 
           # Отключаем ненужные сервисы для CI
           DISABLE_TRAEFIK=true
@@ -81,19 +91,38 @@ jobs:
 
       - name: Build and start services
         run: |
+          # Функция для генерации флагов docker-compose
+          generate_compose_flags() {
+            local compose_files="$1"
+            local flags=""
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              trimmed_line=$(echo "$line" | xargs)
+              if [[ -n "$trimmed_line" ]]; then
+                flags="$flags -f $trimmed_line"
+              fi
+            done <<< "$compose_files"
+
+            echo "${flags# }"
+          }
+
+          # Генерируем флаги
+          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
+          echo "Using docker compose flags: $COMPOSE_FLAGS"
+
           # Собираем и запускаем только необходимые сервисы для тестов
           echo "Building and starting services..."
 
           # Собираем сервис
-          docker compose build subs
+          docker compose $COMPOSE_FLAGS build subs
 
           # Запускаем зависимости
-          docker compose ./infrastructure/docker-compose.yaml up -d postgres
+          docker compose $COMPOSE_FLAGS up -d postgres
 
           # Ждем пока PostgreSQL запустится
           echo "Waiting for PostgreSQL to start..."
           for i in {1..30}; do
-            if docker compose exec -T postgres pg_isready -U test; then
+            if docker compose $COMPOSE_FLAGS exec -T postgres pg_isready -U ${{ env.POSTGRES_USER }}; then
               echo "PostgreSQL is ready!"
               break
             fi
@@ -102,12 +131,12 @@ jobs:
           done
 
           # Запускаем основной сервис
-          docker compose up -d subs
+          docker compose $COMPOSE_FLAGS up -d subs
 
           # Ждем пока сервис запустится
           echo "Waiting for subs service to start..."
           for i in {1..30}; do
-            if docker compose exec -T subs wget -qO- http://localhost:8080/health > /dev/null 2>&1; then
+            if docker compose $COMPOSE_FLAGS exec -T subs wget -qO- http://localhost:8080/health > /dev/null 2>&1; then
               echo "Subs service is ready!"
               break
             fi
@@ -117,17 +146,39 @@ jobs:
 
       - name: Run HURL tests via Docker Compose
         run: |
+          # Функция для генерации флагов docker-compose
+          generate_compose_flags() {
+            local compose_files="$1"
+            local flags=""
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              trimmed_line=$(echo "$line" | xargs)
+              if [[ -n "$trimmed_line" ]]; then
+                flags="$flags -f $trimmed_line"
+              fi
+            done <<< "$compose_files"
+
+            echo "${flags# }"
+          }
+
+          # Генерируем флаги
+          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
+
           echo "Running HURL tests using docker-compose..."
+          echo "Compose flags: $COMPOSE_FLAGS"
 
           # Проверяем наличие сервиса api-tests в docker-compose
-          if docker compose config --services | grep -q "api-tests"; then
+          if docker compose $COMPOSE_FLAGS config --services | grep -q "api-tests"; then
             echo "Using api-tests service from docker-compose..."
-            docker compose run --rm api-tests
+            docker compose $COMPOSE_FLAGS run --rm api-tests
           else
             echo "Creating and running HURL tests container..."
             # Если сервиса api-tests нет, создаем временный контейнер
+            # Получаем имя сети
+            NETWORK_NAME=$(docker compose $COMPOSE_FLAGS ps -q subs | head -1 | xargs docker inspect -f '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}')
+
             docker run --rm \
-              --network "$(docker compose ps -q subs | xargs docker inspect -f '{{.NetworkSettings.Networks}}' | grep -o '_[^ ]*' | head -1 | tr -d '_')" \
+              --network "$NETWORK_NAME" \
               -v "$PWD/tests:/tests:ro" \
               ghcr.io/orange-opensource/hurl:4.2.0 \
               sh -c "
@@ -157,14 +208,48 @@ jobs:
       - name: Check service logs on failure
         if: failure()
         run: |
+          # Функция для генерации флагов docker-compose
+          generate_compose_flags() {
+            local compose_files="$1"
+            local flags=""
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              trimmed_line=$(echo "$line" | xargs)
+              if [[ -n "$trimmed_line" ]]; then
+                flags="$flags -f $trimmed_line"
+              fi
+            done <<< "$compose_files"
+
+            echo "${flags# }"
+          }
+
+          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
+
           echo "========== Service logs =========="
-          docker compose logs --tail=50
+          docker compose $COMPOSE_FLAGS logs --tail=100
           echo "========== End logs =========="
 
       - name: Stop and cleanup
         if: always()
         run: |
-          docker compose down -v --remove-orphans
+          # Функция для генерации флагов docker-compose
+          generate_compose_flags() {
+            local compose_files="$1"
+            local flags=""
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              trimmed_line=$(echo "$line" | xargs)
+              if [[ -n "$trimmed_line" ]]; then
+                flags="$flags -f $trimmed_line"
+              fi
+            done <<< "$compose_files"
+
+            echo "${flags# }"
+          }
+
+          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
+
+          docker compose $COMPOSE_FLAGS down -v --remove-orphans
 
   # --------------------
   # SEMGREP (PR)
