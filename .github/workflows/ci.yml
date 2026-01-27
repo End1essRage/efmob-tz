@@ -46,11 +46,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-<<<<<<< HEAD
-      - run: go test -v  ./...
-=======
       - run: go test -v ./...
->>>>>>> master
 
   # --------------------
   # API TESTS (HURL)
@@ -58,45 +54,20 @@ jobs:
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
-<<<<<<< HEAD
-    needs: integration-tests # ждем, пока интеграционные тесты подняли сервисы
-    services:
-      docker:
-        image: docker:27-dind
-        options: --privileged
-=======
     if: github.event_name == 'pull_request'
 
     env:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       POSTGRES_DB: testdb
->>>>>>> master
 
     steps:
       - uses: actions/checkout@v4
 
-<<<<<<< HEAD
-      - name: Install Docker Compose
-=======
       - name: Make scripts executable
->>>>>>> master
         run: |
           chmod +x .github/scripts/*.sh
 
-<<<<<<< HEAD
-      - name: Build and start services
-        run: |
-          docker compose -f docker-compose.yml up -d --build
-
-      - name: Run Hurl API tests
-        run: |
-          docker compose -f docker-compose.yml run --rm api-tests
-
-      - name: Tear down services
-        if: always()
-        run: docker compose -f docker-compose.yml down
-=======
       - name: Setup Docker Compose
         run: ./.github/scripts/docker-compose.sh setup
 
@@ -116,7 +87,6 @@ jobs:
       - name: Stop and cleanup
         if: always()
         run: ./.github/scripts/docker-compose.sh cleanup
->>>>>>> master
 
   # --------------------
   # SEMGREP (PR)
@@ -137,15 +107,6 @@ jobs:
         uses: returntocorp/semgrep-action@v1
         with:
           config: auto
-<<<<<<< HEAD
-          generateSarif: true
-
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: semgrep-results.sarif
-=======
->>>>>>> master
 
   # --------------------
   # GOVULNCHECK
@@ -230,54 +191,7 @@ jobs:
           npm install swagger-ui-dist
 
       - name: Build GitHub Pages
-<<<<<<< HEAD
-        run: |
-          set -e
-
-          # --------------------
-          # Pages root = Swagger UI
-          # --------------------
-          mkdir -p public/docs
-
-          # Swagger UI кладём прямо в корень pages
-          cp -r node_modules/swagger-ui-dist/* public/
-
-          # --------------------
-          # Copy swagger definitions dynamically from SERVICES
-          # --------------------
-          IFS=',' read -ra SERVICE_LIST <<< "$SERVICES"
-          for service in "${SERVICE_LIST[@]}"; do
-            SWAGGER_FILE="docs/${service}-swagger.json"
-            if [ ! -f "$SWAGGER_FILE" ]; then
-              echo "❌ $SWAGGER_FILE not found"
-              exit 1
-            fi
-            cp "$SWAGGER_FILE" "public/docs/${service}-swagger.json"
-
-            # --------------------
-            # Generate initializer for each service
-            # --------------------
-            cat > "public/swagger-${service}-initializer.js" << EOF
-            window.onload = function () {
-              window.ui = SwaggerUIBundle({
-                url: "./docs/${service}-swagger.json",
-                dom_id: "#swagger-ui",
-                deepLinking: true,
-                presets: [
-                  SwaggerUIBundle.presets.apis,
-                  SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                  SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-              });
-            };
-            EOF
-          done
-=======
         run: ./.github/scripts/build-swagger-site.sh
->>>>>>> master
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
