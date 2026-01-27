@@ -87,6 +87,7 @@ jobs:
         env:
           POSTGRES_DSN: "host=localhost user=test password=test dbname=testdb port=5432 sslmode=disable"
           ENV: test
+          SERVICE_NAME: subs
           PORT: "8080"
         run: |
           # Запускаем сервис в фоне
