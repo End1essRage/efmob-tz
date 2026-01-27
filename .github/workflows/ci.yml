@@ -64,6 +64,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Make scripts executable
+        run: |
+          chmod +x .github/scripts/*.sh
+
       - name: Setup Docker Compose
         run: ./.github/scripts/docker-compose.sh setup
 
@@ -170,6 +174,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x .github/scripts/*.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
