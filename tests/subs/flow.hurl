@@ -11,32 +11,32 @@ Content-Type: application/json
 
 HTTP/1.1 201
 [Asserts]
-jsonpath("$.user_id") == "12601fee-2bf1-4721-ae6f-7636e79a0cba"
-jsonpath("$.service_name") == "Yandex Plus"
-jsonpath("$.price") == 400
+jsonpath "$.user_id" == "12601fee-2bf1-4721-ae6f-7636e79a0cba"
+jsonpath "$.service_name" == "Yandex Plus"
+jsonpath "$.price" == 400
+[Captures]
+sub_id: jsonpath "$.id"  # <-- присваивание переменной здесь
 
-# Сохраняем ID подписки
-@sub_id = jsonpath("$.id")
 
 # Обновляем подписку
 PUT http://subs:8080/subscriptions/{{sub_id}}
 Content-Type: application/json
 
 {
-  "price": 500,
+  "price": 500
 }
 
 HTTP/1.1 200
 [Asserts]
-jsonpath("$.price") == 500
+jsonpath "$.price" == 500
 
 # Читаем подписку, чтобы убедиться, что изменения сохранились
 GET http://subs:8080/subscriptions/{{sub_id}}
 
 HTTP/1.1 200
 [Asserts]
-jsonpath("$.service_name") == "Yandex Plus"
-jsonpath("$.price") == 500
+jsonpath "$.service_name" == "Yandex Plus"
+jsonpath "$.price" == 500
 
 # Удаляем подписку
 DELETE http://subs:8080/subscriptions/{{sub_id}}
@@ -48,4 +48,4 @@ GET http://subs:8080/subscriptions/{{sub_id}}
 
 HTTP/1.1 404
 [Asserts]
-jsonpath("$.error") == "SUBSCRIPTION_NOT_FOUND"
+jsonpath "$.error" == "SUBSCRIPTION_NOT_FOUND"

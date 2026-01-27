@@ -6,6 +6,7 @@ Content-Type: application/json
 }
 
 HTTP/1.1 400
+
 [Asserts]
-jsonpath("$.error") == "invalid request format"
-jsonpath("$.code") == "VALIDATION_ERROR"
+jsonpath "$.error" == "invalid request format"
+jsonpath "$.code" == "VALIDATION_ERROR"

@@ -10,8 +10,8 @@ Content-Type: application/json
 
 HTTP/1.1 201
 [Asserts]
-jsonpath("$.user_id") == "60601fee-2bf1-4721-ae6f-7636e79a0cba"
-jsonpath("$.service_name") == "Yandex Plus"
-jsonpath("$.price") == 400
+jsonpath "$.user_id" == "60601fee-2bf1-4721-ae6f-7636e79a0cba"
+jsonpath "$.service_name" == "Yandex Plus"
+jsonpath "$.price" == 400
 
 ## TODO try read?

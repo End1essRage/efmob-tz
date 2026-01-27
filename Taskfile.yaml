@@ -7,7 +7,7 @@ includes:
 
 env:
   ## change
-  COMPOSE_PROJECT_NAME: nosok
+  COMPOSE_PROJECT_NAME: efmob-tz
   COMPOSE_FILES: |
     docker-compose.yaml
     ./observability/docker-compose.yaml

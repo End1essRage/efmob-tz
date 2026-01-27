@@ -107,10 +107,14 @@ services:
       dockerfile: Dockerfile
       args:
         - SERVICE_NAME=subs
-        - POSTGRES_DSN="host=localhost user=postgres password=pass dbname=subs port=5432 sslmode=disable"
     environment:
       <<: *common-env
+      # вынести в секреты
+      POSTGRES_DSN: "host=postgres user=postgres password=pass dbname=subs port=5432 sslmode=disable"
       SERVICE_NAME: subs
+    depends_on:
+      postgres:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
         # ===== API =====
