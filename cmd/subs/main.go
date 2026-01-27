@@ -37,7 +37,7 @@ func main() {
 	//создаем инстанс логгера
 	logger := l.New(cfg.ServiceName, true, common.ENV(cfg.Env) != common.ENV_PROD).Log("main", "main")
 
-	logger.Infof("запуск %s сервиса", cfg.Env)
+	logger.Infof("запуск %s сервиса", cfg.ServiceName)
 
 	//корневой контекст
 	ctx := common.Context()
@@ -76,7 +76,7 @@ func main() {
 }
 
 func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
-	log := l.Logger().Log("main", "main")
+	log := l.Logger().Log("main", "createSubsMicroservice")
 
 	// бд
 	var repo domain.SubscriptionRepository
@@ -136,6 +136,7 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	log.Info("роуты созданы")
 
 	cleanup := func() {
+		log.Info("очистка зависимостей")
 		if cleanupDB != nil {
 			cleanupDB()
 		}

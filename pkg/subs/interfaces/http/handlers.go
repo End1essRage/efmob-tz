@@ -4,7 +4,22 @@ import (
 	"net/http"
 
 	"github.com/end1essrage/efmob-tz/pkg/common/interfaces/http/utils"
+	"github.com/end1essrage/efmob-tz/pkg/common/persistance"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application/commands"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application/queries"
+	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 )
+
+var mapSubscriptionFromDomain = func(record *domain.Subscription) *Subscription {
+	return &Subscription{
+		ID:          record.ID(),
+		UserID:      record.UserID(),
+		ServiceName: record.ServiceName(),
+		Price:       record.Price(),
+		StartDate:   formatDate(record.StartDate()),
+		EndDate:     formatOptionalDate(record.EndDate()),
+	}
+}
 
 // CreateSubscription godoc
 // @Summary Create subscription
@@ -22,8 +37,31 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 	if !utils.DecodeJSONBody(w, r, &req) {
 		return
 	}
+	sD, err := parseDate(w, req.StartDate)
+	if err != nil {
+		return
+	}
+	eD, err := parseOptionalDate(w, req.EndDate)
+	if err != nil {
+		return
+	}
 
-	writeNotImplemented(w)
+	cmd := commands.CreateSubscriptionCommand{
+		UserID:      req.UserID,
+		ServiceName: req.ServiceName,
+		Price:       req.Price,
+		StartDate:   sD,
+		EndDate:     eD,
+	}
+
+	record, err := h.container.CreateSubscriptionHandler.Handle(r.Context(), cmd)
+	if err != nil {
+		// оборачиваем ошибку
+		h.writeAppError(w, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, mapSubscriptionFromDomain(record))
 }
 
 // GetSubscription godoc
@@ -37,10 +75,19 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [get]
 func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
+	uid, err := extrudeUidFromQuery(w, r)
+	if err != nil {
+		return
+	}
 
-	//id := chi.URLParam(r, "id")
+	record, err := h.container.GetSubscriptionHandler.Handle(r.Context(), queries.GetSubscriptionQuery{ID: uid})
+	if err != nil {
+		// оборачиваем ошибку
+		h.writeAppError(w, err)
+		return
+	}
 
-	writeNotImplemented(w)
+	utils.WriteJSON(w, http.StatusOK, mapSubscriptionFromDomain(record))
 }
 
 // UpdateSubscription godoc
@@ -51,19 +98,44 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Subscription ID"
 // @Param request body SubscriptionUpdateRequest true "Updated data"
-// @Success 200 {object} Subscription
+// @Success 202 {object} Subscription
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
-// @Router /subscriptions/{id} [put]
+// @Router /subscriptions/{id} [patch]
 func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	uid, err := extrudeUidFromQuery(w, r)
+	if err != nil {
+		return
+	}
+
 	var req SubscriptionUpdateRequest
 	if !utils.DecodeJSONBody(w, r, &req) {
 		return
 	}
 
-	//id := chi.URLParam(r, "id")
-	writeNotImplemented(w)
+	sD, err := parseDate(w, req.StartDate)
+	if err != nil {
+		return
+	}
+
+	eD, err := parseOptionalDate(w, req.EndDate)
+	if err != nil {
+		return
+	}
+
+	record, err := h.container.UpdateSubscriptionHandler.Handle(r.Context(), commands.UpdateSubscriptionCommand{
+		ID:        uid,
+		Price:     req.Price,
+		StartDate: sD,
+		EndDate:   eD,
+	})
+	if err != nil {
+		h.writeAppError(w, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusAccepted, mapSubscriptionFromDomain(record))
 }
 
 // DeleteSubscription godoc
@@ -77,9 +149,17 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [delete]
 func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
-	//id := chi.URLParam(r, "id")
+	uid, err := extrudeUidFromQuery(w, r)
+	if err != nil {
+		return
+	}
 
-	writeNotImplemented(w)
+	if err := h.container.DeleteSubscriptionHandler.Handle(r.Context(), commands.DeleteSubscriptionCommand{ID: uid}); err != nil {
+		h.writeAppError(w, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusNoContent, nil)
 }
 
 // ListSubscriptions godoc
@@ -101,7 +181,68 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeNotImplemented(w)
+	//собираем квери
+	sD, err := parseOptionalDate(w, req.From)
+	if err != nil {
+		return
+	}
+
+	eD, err := parseOptionalDate(w, req.To)
+	if err != nil {
+		return
+	}
+
+	period, err := domain.NewPeriod(*sD, *eD)
+	if err != nil {
+		h.writeAppError(w, err)
+		return
+	}
+
+	// собираем пагинацию
+	var pagination *persistance.Pagination
+	if req.PageSize != nil {
+		pagination = &persistance.Pagination{Limit: *req.PageSize}
+		if req.Page != nil {
+			page := *req.Page
+			if page < 2 {
+				pagination.Offset = 0
+			} else {
+				pagination.Offset = pagination.Limit * (page - 1)
+			}
+		} else {
+			pagination.Offset = 0
+		}
+	}
+
+	// собираем сортировку
+	var sorting *persistance.Sorting
+	if req.OrderBy != nil {
+		sorting = &persistance.Sorting{OrderBy: *req.OrderBy}
+		if req.Direction != nil {
+			sorting.Direction = persistance.SortingDirection(*req.Direction)
+		} else {
+			sorting.Direction = persistance.DefaultDirection
+		}
+	}
+
+	// исполняем квери
+	records, err := h.container.ListSubscriptionsHandler.Handle(r.Context(), queries.ListSubscriptionsQuery{
+		Query:      domain.NewSubscriptionQuery(req.UserID, req.ServiceName, period),
+		Pagination: pagination,
+		Sorting:    sorting,
+	})
+	if err != nil {
+		h.writeAppError(w, err)
+		return
+	}
+
+	// маппим ответ
+	resp := make([]*Subscription, len(records))
+	for i, r := range records {
+		resp[i] = mapSubscriptionFromDomain(r)
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
 // GetTotalCost godoc
@@ -123,41 +264,30 @@ func (h *SubsHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeNotImplemented(w)
-}
-func writeNotImplemented(w http.ResponseWriter) {
-	utils.WriteJSON(w, http.StatusInternalServerError, map[string]string{
-		"msg": "NOT_IMPLEMENTED",
+	//собираем квери
+	sD, err := parseDate(w, req.From)
+	if err != nil {
+		return
+	}
+
+	eD, err := parseDate(w, req.To)
+	if err != nil {
+		return
+	}
+
+	period, err := domain.NewPeriod(sD, eD)
+	if err != nil {
+		h.writeAppError(w, err)
+		return
+	}
+
+	result, err := h.container.TotalCostHandler.Handle(r.Context(), queries.TotalCostQuery{
+		Query: domain.NewSubscriptionQuery(&req.UserID, req.ServiceName, period),
 	})
-}
-
-/*
-func (h *SubsHandler) writeAppError(w http.ResponseWriter, err error) {
-	appErr := app.MapDomainError(err)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(appErr.HTTPStatus)
-
-	// Безопасно формируем сообщение
-	msg := appErr.Code
-	if appErr.HTTPStatus >= 500 {
-		// Для внутренних ошибок можно не раскрывать детали
-		msg = "INTERNAL_ERROR"
+	if err != nil {
+		h.writeAppError(w, err)
+		return
 	}
 
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"error": msg,
-		"code":  appErr.Code,
-	}); err != nil {
-		logger.Logger().Log("AuthHandler", "writeAppError").Error(err)
-	}
+	utils.WriteJSON(w, http.StatusOK, TotalCostResponse{Total: result})
 }
-
-
-func formatOptionalDate(t *time.Time) *string {
-	if t == nil {
-		return nil
-	}
-	s := t.Format("01-2006")
-	return &s
-}
-*/

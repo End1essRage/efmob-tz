@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const maxQueryCount = 100
+
 type InMemorySubscriptionRepo struct {
 	mu   sync.RWMutex
 	subs map[uuid.UUID]*domain.Subscription
@@ -73,15 +75,15 @@ func (r *InMemorySubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) err
 func (r *InMemorySubscriptionRepo) Find(
 	ctx context.Context,
 	q domain.SubscriptionQuery,
-	pagination p.Pagination,
-	sorting p.Sorting,
+	pagination *p.Pagination,
+	sorting *p.Sorting,
 ) ([]*domain.Subscription, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	var result []*domain.Subscription
 	for _, sub := range r.subs {
-		if q.UserID() != uuid.Nil && sub.UserID() != q.UserID() {
+		if q.UserID() != nil && sub.UserID() != *q.UserID() {
 			continue
 		}
 		if q.ServiceName() != nil && sub.ServiceName() != *q.ServiceName() {
@@ -101,7 +103,7 @@ func (r *InMemorySubscriptionRepo) Find(
 	}
 
 	// сортировка
-	if sorting.OrderBy != "" {
+	if sorting != nil {
 		sort.Slice(result, func(i, j int) bool {
 			switch sorting.OrderBy {
 			case "price":
@@ -123,16 +125,20 @@ func (r *InMemorySubscriptionRepo) Find(
 	}
 
 	// пагинация
-	start := pagination.Offset
-	if start > len(result) {
-		start = len(result)
-	}
-	end := start + pagination.Limit
-	if end > len(result) || pagination.Limit == 0 {
-		end = len(result)
+	if pagination != nil {
+		start := pagination.Offset
+		if start > len(result) {
+			start = len(result)
+		}
+		end := start + pagination.Limit
+		if end > len(result) || pagination.Limit == 0 {
+			end = len(result)
+		}
+
+		return result[start:end], nil
 	}
 
-	return result[start:end], nil
+	return result[:maxQueryCount], nil
 }
 
 func (r *InMemorySubscriptionRepo) CalculateTotal(ctx context.Context, q domain.SubscriptionQuery) (int, error) {
@@ -141,7 +147,7 @@ func (r *InMemorySubscriptionRepo) CalculateTotal(ctx context.Context, q domain.
 
 	count := 0
 	for _, sub := range r.subs {
-		if q.UserID() != uuid.Nil && sub.UserID() != q.UserID() {
+		if q.UserID() != nil && sub.UserID() != *q.UserID() {
 			continue
 		}
 		if q.ServiceName() != nil && sub.ServiceName() != *q.ServiceName() {

@@ -123,9 +123,9 @@ func TestSubscriptionRepo_FindAndCalculateTotal(t *testing.T) {
 	}
 
 	// --- Find с фильтром ---
-	query := domain.NewSubscriptionQuery(userID, nil, nil)
-	pagination := p.Pagination{Limit: 2, Offset: 0}
-	sorting := p.Sorting{OrderBy: "price", Direction: p.Descending}
+	query := domain.NewSubscriptionQuery(&userID, nil, nil)
+	pagination := &p.Pagination{Limit: 2, Offset: 0}
+	sorting := &p.Sorting{OrderBy: "price", Direction: p.Descending}
 
 	results, err := repo.Find(ctx, query, pagination, sorting)
 	assert.NoError(t, err)

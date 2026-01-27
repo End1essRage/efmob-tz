@@ -79,10 +79,10 @@ func (r *GormSubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // Find возвращает список подписок
-func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination p.Pagination, sorting p.Sorting) ([]*domain.Subscription, error) {
+func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination *p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	if q.UserID() != uuid.Nil {
+	if q.UserID() != nil {
 		db = db.Where("user_id = ?", q.UserID())
 	}
 	if q.ServiceName() != nil {
@@ -92,11 +92,11 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 		db = db.Where("start_date <= ? AND (end_date IS NULL OR end_date >= ?)", q.Period().To(), q.Period().From())
 	}
 
-	if sorting.OrderBy != "" {
+	if sorting != nil {
 		db = db.Order(sorting.OrderBy + " " + string(sorting.Direction))
 	}
 
-	if pagination.Limit > 0 {
+	if pagination != nil {
 		db = db.Limit(pagination.Limit).Offset(pagination.Offset)
 	}
 
@@ -116,7 +116,7 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 func (r *GormSubscriptionRepo) CalculateTotal(ctx context.Context, q domain.SubscriptionQuery) (int, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	if q.UserID() != uuid.Nil {
+	if q.UserID() != nil {
 		db = db.Where("user_id = ?", q.UserID())
 	}
 	if q.ServiceName() != nil {

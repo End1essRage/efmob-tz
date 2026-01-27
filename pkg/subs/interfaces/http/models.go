@@ -1,5 +1,7 @@
 package http
 
+import "github.com/google/uuid"
+
 // TotalCostResponse
 // swagger:model TotalCostResponse
 type TotalCostResponse struct {
@@ -13,7 +15,7 @@ type TotalCostResponse struct {
 type SubscriptionCreateRequest struct {
 	// User ID (UUID)
 	// required: true
-	UserID string `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 
 	// Service name
 	// required: true
@@ -54,28 +56,28 @@ type SubscriptionUpdateRequest struct {
 // swagger:model SubscriptionQueryRequest
 type SubscriptionQueryRequest struct {
 	// Filter by User ID (UUID), optional
-	UserID *string `schema:"user_id"`
+	UserID *uuid.UUID `schema:"user_id,omitempty"`
 
 	// Filter by service name, optional
-	ServiceName *string `schema:"service_name"`
+	ServiceName *string `schema:"service_name,omitempty"`
 
 	// Filter by start period (MM-YYYY), optional
-	From *string `schema:"from"`
+	From *string `schema:"from,omitempty"`
 
 	// Filter by end period (MM-YYYY), optional
-	To *string `schema:"to"`
+	To *string `schema:"to,omitempty"`
 
 	// Page number for pagination, optional
-	Page int `schema:"page"`
+	Page *int `schema:"page,omitempty"`
 
 	// Page size for pagination, optional
-	PageSize int `schema:"page_size"`
+	PageSize *int `schema:"page_size,omitempty"`
 
 	// Sort field, optional (e.g., "start_date" or "price")
-	OrderBy string `schema:"order_by"`
+	OrderBy *string `schema:"order_by,omitempty"`
 
 	// Sort direction, optional: "asc" or "desc"
-	Direction string `schema:"direction"`
+	Direction *string `schema:"direction,omitempty"`
 }
 
 // TotalCostRequest
@@ -83,7 +85,7 @@ type SubscriptionQueryRequest struct {
 type TotalCostRequest struct {
 	// User ID (UUID)
 	// required: true
-	UserID string `schema:"user_id"`
+	UserID uuid.UUID `schema:"user_id"`
 
 	// Service name filter, optional
 	ServiceName *string `schema:"service_name"`
@@ -102,11 +104,11 @@ type TotalCostRequest struct {
 type Subscription struct {
 	// ID (UUID)
 	// example: bb601f22-2bf3-4721-ae6f-7636e79a0cba
-	ID string `json:"id"`
+	ID uuid.UUID `json:"id"`
 
 	// User ID (UUID)
 	// example: 60601fee-2bf1-4721-ae6f-7636e79a0cba
-	UserID string `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 
 	// Service name
 	// example: Yandex Plus

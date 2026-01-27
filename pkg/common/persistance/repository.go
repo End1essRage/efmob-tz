@@ -8,8 +8,9 @@ type Pagination struct {
 type SortingDirection string
 
 const (
-	Ascending  SortingDirection = "asc"
-	Descending SortingDirection = "desc"
+	Ascending        SortingDirection = "asc"
+	Descending       SortingDirection = "desc"
+	DefaultDirection                  = Ascending
 )
 
 type Sorting struct {

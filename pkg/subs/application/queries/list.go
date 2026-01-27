@@ -9,8 +9,8 @@ import (
 
 type ListSubscriptionsQuery struct {
 	Query      domain.SubscriptionQuery
-	Pagination p.Pagination
-	Sorting    p.Sorting
+	Pagination *p.Pagination
+	Sorting    *p.Sorting
 }
 
 type ListSubscriptionsHandler struct {

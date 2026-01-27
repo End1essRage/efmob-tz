@@ -21,7 +21,7 @@ func LoadConfig() *Config {
 	v.AutomaticEnv()        // fallback на env vars
 
 	if err := v.ReadInConfig(); err != nil {
-		log.Printf("onfig file not found, using env vars only: %v", err)
+		log.Printf("config file not found, using env vars only: %v", err)
 	}
 
 	cfg := &Config{
