@@ -3,6 +3,8 @@ package subs
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"time"
 
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
@@ -26,11 +28,15 @@ func (r *GormSubscriptionRepo) Migrate() error {
 // Create сохраняет подписку
 func (r *GormSubscriptionRepo) Create(ctx context.Context, sub *domain.Subscription) (uuid.UUID, error) {
 	model := FromDomain(sub)
-	err := r.db.WithContext(ctx).Create(model).Error
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return model.ID, nil // возвращаем UUID, который реально в базе
+	var id uuid.UUID
+	err := r.withRetry(ctx, func() error {
+		if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
+			return err
+		}
+		id = model.ID
+		return nil
+	})
+	return id, err
 }
 
 // GetByID возвращает подписку по ID
@@ -47,22 +53,29 @@ func (r *GormSubscriptionRepo) GetByID(ctx context.Context, id uuid.UUID) (*doma
 
 // Update обновляет подписку
 func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscription) error {
-	res := r.db.WithContext(ctx).Model(&SubscriptionModel{}).
-		Where("id = ?", sub.ID()).
-		Updates(FromDomain(sub))
-	if res.RowsAffected == 0 {
-		return domain.ErrSubscriptionNotFound
-	}
-	return res.Error
+	err := r.withRetry(ctx, func() error {
+		res := r.db.WithContext(ctx).Model(&SubscriptionModel{}).
+			Where("id = ?", sub.ID()).
+			Updates(FromDomain(sub))
+		if res.RowsAffected == 0 {
+			return domain.ErrSubscriptionNotFound
+		}
+		return res.Error
+	})
+	return err
 }
 
 // Delete удаляет подписку
 func (r *GormSubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	res := r.db.WithContext(ctx).Delete(&SubscriptionModel{}, "id = ?", id)
-	if res.RowsAffected == 0 {
-		return domain.ErrSubscriptionNotFound
-	}
-	return res.Error
+	err := r.withRetry(ctx, func() error {
+		res := r.db.WithContext(ctx).Delete(&SubscriptionModel{}, "id = ?", id)
+		if res.RowsAffected == 0 {
+			return domain.ErrSubscriptionNotFound
+		}
+		return res.Error
+	})
+
+	return err
 }
 
 // Find возвращает список подписок
@@ -118,4 +131,59 @@ func (r *GormSubscriptionRepo) CalculateTotal(ctx context.Context, q domain.Subs
 		return 0, err
 	}
 	return int(count), nil
+}
+
+// TODO метрика
+func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) error {
+	const retries = 3
+	var interval = 2 * time.Second
+
+	var lastErr error
+	for i := 0; i < retries; i++ {
+		//jitter
+		sleep := interval + time.Duration(rand.Intn(500))*time.Millisecond
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(sleep):
+			}
+			//exponent
+			interval *= 2
+		}
+
+		if err := op(); err != nil {
+			if !isRetryableError(err) {
+				return err
+			}
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// GORM может вернуть gorm.ErrInvalidTransaction, gorm.ErrInvalidSQL и др.
+	// Основная цель — сетевые ошибки / connection refused
+	var netErr interface{ Temporary() bool }
+	if errors.As(err, &netErr) && netErr.Temporary() {
+		return true
+	}
+
+	// Также можно ловить ошибки драйвера PostgreSQL
+	if errors.Is(err, gorm.ErrInvalidTransaction) {
+		return true
+	}
+
+	// Простейшая проверка по строке (если нет better option)
+	if err.Error() == "server closed the connection unexpectedly" {
+		return true
+	}
+
+	return false
 }

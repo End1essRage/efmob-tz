@@ -40,6 +40,7 @@ var MiddlewareLogger func(http.Handler) http.Handler = func(next http.Handler) h
 	})
 }
 
+// TODO metrics middleware
 func CreateRouter() *chi.Mux {
 	r := chi.NewRouter()
 
