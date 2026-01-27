@@ -216,27 +216,3 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
-
-  # --------------------
-  # DEPLOY APP
-  # --------------------
-  deploy-app:
-    if: github.ref == 'refs/heads/master'
-    needs: [lint, test, swagger-check]
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Make scripts executable
-        run: |
-          chmod +x .github/scripts/*.sh
-
-      - name: Setup Docker Compose
-        run: ./.github/scripts/docker-compose.sh setup
-
-      - name: Prepare test environment
-        run: ./.github/scripts/prepare-test-env.sh
-
-      - name: Build and start services
-        run: ./.github/scripts/docker-compose.sh start-services
