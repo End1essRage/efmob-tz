@@ -74,22 +74,65 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Install HURL (via apt)
+      - name: Install HURL (using curl and GitHub API)
         run: |
-          # Устанавливаем необходимые пакеты
-          sudo apt-get update
-          sudo apt-get install -y wget gnupg
+          # Получаем информацию о последнем релизе через GitHub API
+          echo "Getting HURL download URL..."
 
-          # Добавляем репозиторий HURL
-          wget -qO - https://apt.opensource.orange.com/signing-key.gpg | sudo apt-key add -
-          echo "deb [arch=amd64] https://apt.opensource.orange.com stable main" | sudo tee /etc/apt/sources.list.d/hurl.list
+          # Используем конкретную версию
+          VERSION="4.2.0"
 
-          # Устанавливаем HURL
-          sudo apt-get update
-          sudo apt-get install -y hurl
+          # Получаем URL для скачивания для Linux x86_64
+          # Ищем правильный asset в релизе
+          ASSET_URL=$(curl -s "https://api.github.com/repos/Orange-OpenSource/hurl/releases/tags/${VERSION}" | \
+            grep -E 'browser_download_url.*(linux.*tar\.gz|x86_64.*tar\.gz)' | \
+            grep -v '.sha256' | \
+            head -1 | \
+            cut -d'"' -f4)
+
+          if [ -z "$ASSET_URL" ]; then
+            # Если не нашли, пробуем альтернативные варианты
+            echo "Trying to find alternative download URL..."
+            ASSET_URL="https://github.com/Orange-OpenSource/hurl/releases/download/${VERSION}/hurl-${VERSION}-x86_64-linux.tar.gz"
+          fi
+
+          echo "Downloading from: $ASSET_URL"
+
+          # Скачиваем
+          curl -L -o hurl.tar.gz "$ASSET_URL"
+
+          # Проверяем что файл скачался
+          if [ ! -f "hurl.tar.gz" ]; then
+            echo "Failed to download HURL"
+            exit 1
+          fi
+
+          # Распаковываем
+          tar -xzf hurl.tar.gz
+
+          # Находим директорию с бинарниками (она может называться по-разному)
+          if [ -d "hurl-${VERSION}" ]; then
+            cd "hurl-${VERSION}"
+          elif [ -d "hurl-${VERSION}-x86_64-linux" ]; then
+            cd "hurl-${VERSION}-x86_64-linux"
+          else
+            # Ищем любую директорию начинающуюся с hurl-
+            DIR_NAME=$(find . -maxdepth 1 -type d -name "hurl-*" | head -1)
+            if [ -n "$DIR_NAME" ]; then
+              cd "$DIR_NAME"
+            fi
+          fi
+
+          # Устанавливаем бинарники
+          sudo cp -f bin/hurl /usr/local/bin/
+          sudo cp -f bin/hurlfmt /usr/local/bin/
+          sudo chmod +x /usr/local/bin/hurl /usr/local/bin/hurlfmt
 
           # Проверяем установку
-          hurl --version
+          echo "HURL version:"
+          hurl --version || echo "Failed to run hurl"
+          echo "HURLFMT version:"
+          hurlfmt --version || echo "Failed to run hurlfmt"
 
       - name: Build application
         run: |
@@ -283,7 +326,7 @@ jobs:
                 ],
                 layout: "StandaloneLayout"
               });
-            };'EOF'
+            };`EOF'
           done
 
       - name: Upload Pages artifact
