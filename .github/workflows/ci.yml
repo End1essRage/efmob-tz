@@ -280,7 +280,6 @@ jobs:
                 layout: "StandaloneLayout"
               });
             };
-            EOF
           done
 
       - name: Upload Pages artifact
