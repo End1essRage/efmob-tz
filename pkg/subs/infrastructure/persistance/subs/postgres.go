@@ -25,9 +25,10 @@ func (r *GormSubscriptionRepo) Migrate() error {
 	return r.db.AutoMigrate(&SubscriptionModel{})
 }
 
-// Create сохраняет подписку
 func (r *GormSubscriptionRepo) Create(ctx context.Context, sub *domain.Subscription) (uuid.UUID, error) {
 	model := FromDomain(sub)
+	// Version уже должен быть 1 из домена
+
 	var id uuid.UUID
 	err := r.withRetry(ctx, func() error {
 		if err := r.db.WithContext(ctx).Create(model).Error; err != nil {
@@ -37,6 +38,49 @@ func (r *GormSubscriptionRepo) Create(ctx context.Context, sub *domain.Subscript
 		return nil
 	})
 	return id, err
+}
+
+// Update с оптимистичной блокировкой
+func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscription) error {
+	err := r.withRetry(ctx, func() error {
+		model := FromDomain(sub)
+
+		res := r.db.WithContext(ctx).Model(&SubscriptionModel{}).
+			Where("id = ? AND version = ?", sub.ID(), sub.Version()). // Проверяем ТЕКУЩУЮ версию
+			Updates(map[string]interface{}{
+				"user_id":      model.UserID,
+				"service_name": model.ServiceName,
+				"price":        model.Price,
+				"start_date":   model.StartDate,
+				"end_date":     model.EndDate,
+				"updated_at":   time.Now(),               // Всегда текущее время
+				"version":      gorm.Expr("version + 1"), // Атомарный инкремент
+			})
+
+		if res.Error != nil {
+			return res.Error
+		}
+
+		if res.RowsAffected == 0 {
+			// Проверяем причину
+			var exists bool
+			r.db.WithContext(ctx).Model(&SubscriptionModel{}).
+				Select("1").
+				Where("id = ?", sub.ID()).
+				Limit(1).
+				Find(&exists)
+
+			if !exists {
+				return domain.ErrSubscriptionNotFound
+			}
+
+			// Если запись существует, значит version не совпал
+			return domain.ErrConcurrentModification
+		}
+
+		return nil
+	})
+	return err
 }
 
 // GetByID возвращает подписку по ID
@@ -49,20 +93,6 @@ func (r *GormSubscriptionRepo) GetByID(ctx context.Context, id uuid.UUID) (*doma
 		return nil, err
 	}
 	return m.ToDomain(), nil
-}
-
-// Update обновляет подписку
-func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscription) error {
-	err := r.withRetry(ctx, func() error {
-		res := r.db.WithContext(ctx).Model(&SubscriptionModel{}).
-			Where("id = ?", sub.ID()).
-			Updates(FromDomain(sub))
-		if res.RowsAffected == 0 {
-			return domain.ErrSubscriptionNotFound
-		}
-		return res.Error
-	})
-	return err
 }
 
 // Delete удаляет подписку

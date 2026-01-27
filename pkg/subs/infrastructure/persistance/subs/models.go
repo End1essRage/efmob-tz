@@ -16,6 +16,8 @@ type SubscriptionModel struct {
 	EndDate     *time.Time `gorm:""`
 	CreatedAt   time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
+
+	Version int `gorm:"not null;default:1"` // <- добавляем версию
 }
 
 // Таблица будет называться subscriptions
@@ -24,15 +26,21 @@ func (SubscriptionModel) TableName() string {
 }
 
 func (m *SubscriptionModel) ToDomain() *domain.Subscription {
-	sub, _ := domain.NewSubscription(
+	sub, err := domain.NewSubscriptionWithVersion(
 		m.ID,
 		m.UserID,
 		m.ServiceName,
 		m.Price,
 		m.StartDate,
 		m.EndDate,
+		m.CreatedAt,
+		m.UpdatedAt,
+		m.Version,
 	)
-	// После создания меняем поля createdAt/updatedAt напрямую через reflect или метод SetUpdatedAt (если есть)
+	if err != nil {
+		// Лучше вернуть ошибку, но для совместимости:
+		return nil
+	}
 	return sub
 }
 
@@ -47,5 +55,6 @@ func FromDomain(sub *domain.Subscription) *SubscriptionModel {
 		EndDate:     sub.EndDate(),
 		CreatedAt:   sub.CreatedAt(),
 		UpdatedAt:   sub.UpdatedAt(),
+		Version:     sub.Version(),
 	}
 }

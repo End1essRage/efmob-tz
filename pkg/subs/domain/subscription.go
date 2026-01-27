@@ -17,6 +17,52 @@ type Subscription struct {
 	endDate     *time.Time
 	createdAt   time.Time
 	updatedAt   time.Time
+
+	version int // оптимистичная блокировка
+}
+
+func NewSubscriptionWithVersion(
+	id uuid.UUID,
+	userID uuid.UUID,
+	serviceName string,
+	price int,
+	startDate time.Time,
+	endDate *time.Time,
+	createdAt time.Time,
+	updatedAt time.Time,
+	version int,
+) (*Subscription, error) {
+	// Проверяем только бизнес-правила
+	if userID == uuid.Nil {
+		return nil, errors.New("user id is required")
+	}
+	if strings.TrimSpace(serviceName) == "" {
+		return nil, ErrInvalidServiceName
+	}
+	if price <= 0 {
+		return nil, ErrInvalidPrice
+	}
+
+	startDate = normalizeMonth(startDate)
+	if endDate != nil {
+		normalizedEnd := normalizeMonth(*endDate)
+		if !normalizedEnd.After(startDate) {
+			return nil, ErrInvalidDates
+		}
+		endDate = &normalizedEnd
+	}
+
+	return &Subscription{
+		id:          id,
+		userID:      userID,
+		serviceName: serviceName,
+		price:       price,
+		startDate:   startDate,
+		endDate:     endDate,
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
+		version:     version,
+	}, nil
 }
 
 func NewSubscription(
@@ -64,6 +110,7 @@ func NewSubscription(
 		endDate:     endDate,
 		createdAt:   now,
 		updatedAt:   now,
+		version:     1, // Начальная версия
 	}, nil
 }
 
@@ -77,6 +124,8 @@ func (s Subscription) StartDate() time.Time { return s.startDate }
 func (s Subscription) EndDate() *time.Time  { return s.endDate }
 func (s Subscription) CreatedAt() time.Time { return s.createdAt }
 func (s Subscription) UpdatedAt() time.Time { return s.updatedAt }
+
+func (s Subscription) Version() int { return s.version }
 func (s Subscription) IsActive(at time.Time) bool {
 	if at.Before(s.startDate) {
 		return false
