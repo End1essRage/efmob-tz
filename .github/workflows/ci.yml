@@ -66,11 +66,6 @@ jobs:
         run: |
           # Создаем .env файл для тестовой среды
           cat > .env << 'EOF'
-          # Database
-          POSTGRES_USER=test
-          POSTGRES_PASSWORD=test
-          POSTGRES_DB=testdb
-
           # Application
           ENV=test
           SERVICE_NAME=subs
@@ -93,7 +88,7 @@ jobs:
           docker compose build subs
 
           # Запускаем зависимости
-          docker compose up -d postgres
+          docker compose ./infrastructure/docker-compose.yaml up -d postgres
 
           # Ждем пока PostgreSQL запустится
           echo "Waiting for PostgreSQL to start..."
