@@ -50,7 +50,6 @@ jobs:
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
-    needs: integration-tests # ждем, пока интеграционные тесты подняли сервисы
     services:
       docker:
         image: docker:27-dind
