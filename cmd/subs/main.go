@@ -9,10 +9,12 @@ import (
 
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
+	common_metrics "github.com/end1essrage/efmob-tz/pkg/common/metrics"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
 	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	subs_repo "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 	subs_http "github.com/end1essrage/efmob-tz/pkg/subs/interfaces/http"
+	subs_metrics "github.com/end1essrage/efmob-tz/pkg/subs/metrics"
 	"github.com/go-chi/chi/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -38,6 +40,10 @@ func main() {
 	logger := l.New(cfg.ServiceName, true, common.ENV(cfg.Env) != common.ENV_PROD).Log("main", "main")
 
 	logger.Infof("запуск %s сервиса", cfg.ServiceName)
+
+	// регистрация метрик
+	common_metrics.Register()
+	subs_metrics.Register()
 
 	//корневой контекст
 	ctx := common.Context()

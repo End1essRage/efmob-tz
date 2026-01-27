@@ -10,7 +10,7 @@ services:
       - "9096:9096"
     volumes:
       - ./observability/loki:/etc/loki
-      - loki_data:/loki
+      # - loki_data:/loki
     networks:
       - app-network
 
@@ -45,7 +45,7 @@ services:
       - "--web.enable-remote-write-receiver" # Включаем прием от Alloy
     volumes:
       - ./observability/prometheus:/etc/prometheus
-      - prometheus_data:/prometheus
+      # - prometheus_data:/prometheus
     ports:
       - "9090:9090"
     networks:
