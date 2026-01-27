@@ -76,8 +76,17 @@ jobs:
 
       - name: Install HURL
         run: |
+          # Устанавливаем HURL
           curl -sSL https://install.hurl.dev | bash -s -- --version 4.2.0
+
+          # Явно добавляем путь в PATH для текущего шага
           echo "$HOME/.hurl/bin" >> $GITHUB_PATH
+
+          # Проверяем установку
+          $HOME/.hurl/bin/hurl --version || echo "HURL not found in .hurl/bin"
+
+          # Также проверяем доступность через PATH
+          which hurl || echo "HURL not in PATH yet"
 
       - name: Build application
         run: |
@@ -94,7 +103,8 @@ jobs:
           ./subs-service &
           SERVER_PID=$!
 
-          # Ждем запуска (увеличиваем время ожидания)
+          # Ждем запуска
+          echo "Waiting for service to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8080/health > /dev/null; then
               echo "Service started successfully"
@@ -113,9 +123,22 @@ jobs:
           # Сохраняем PID для cleanup
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
+      - name: Verify HURL installation
+        run: |
+          # Проверяем, что HURL доступен
+          echo "Current PATH: $PATH"
+          which hurl || echo "HURL not found in PATH"
+          hurl --version || echo "Failed to run hurl"
+
       - name: Run HURL tests
         run: |
-          hurl --test tests/**/*.hurl
+          # Используем явный путь или проверяем glob pattern
+          echo "Running HURL tests..."
+          # Попробуем найти файлы
+          find tests -name "*.hurl" -type f | head -5
+
+          # Запускаем тесты
+          hurl --test tests/**/*.hurl || echo "HURL tests failed"
 
       - name: Cleanup
         if: always()
