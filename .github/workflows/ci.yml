@@ -74,18 +74,22 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Install HURL (direct download)
+      - name: Install HURL (via apt)
         run: |
-          # Скачиваем HURL напрямую с GitHub
-          VERSION="4.2.0"
-          curl -LO "https://github.com/Orange-OpenSource/hurl/releases/download/${VERSION}/hurl_${VERSION}_linux_x86_64.tar.gz"
-          tar -xzf "hurl_${VERSION}_linux_x86_64.tar.gz"
-          sudo install -m 755 hurl /usr/local/bin/
-          sudo install -m 755 hurlfmt /usr/local/bin/
+          # Устанавливаем необходимые пакеты
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+          # Добавляем репозиторий HURL
+          wget -qO - https://apt.opensource.orange.com/signing-key.gpg | sudo apt-key add -
+          echo "deb [arch=amd64] https://apt.opensource.orange.com stable main" | sudo tee /etc/apt/sources.list.d/hurl.list
+
+          # Устанавливаем HURL
+          sudo apt-get update
+          sudo apt-get install -y hurl
 
           # Проверяем установку
           hurl --version
-          hurlfmt --version
 
       - name: Build application
         run: |
@@ -279,7 +283,7 @@ jobs:
                 ],
                 layout: "StandaloneLayout"
               });
-            };
+            };'EOF'
           done
 
       - name: Upload Pages artifact
