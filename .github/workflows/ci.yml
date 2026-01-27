@@ -233,42 +233,40 @@ jobs:
           cp -r node_modules/swagger-ui-dist/* public/
 
           # --------------------
-          # Copy swagger definitions dynamically from SERVICES
+          # Copy swagger definition
           # --------------------
-          IFS=',' read -ra SERVICE_LIST <<< "$SERVICES"
-          for service in "${SERVICE_LIST[@]}"; do
-            SWAGGER_FILE="docs/${service}-swagger.json"
-            if [ ! -f "$SWAGGER_FILE" ]; then
-              echo "❌ $SWAGGER_FILE not found"
-              exit 1
-            fi
-            cp "$SWAGGER_FILE" "public/docs/${service}-swagger.json"
+          if [ ! -f "docs/subs-swagger.json" ]; then
+            echo "❌ docs/subs-swagger.json not found"
+            exit 1
+          fi
 
-            # --------------------
-            # Generate initializer for each service - БЕЗ HEREDOC
-            # --------------------
-            echo 'window.onload = function () {' > "public/swagger-${service}-initializer.js"
-            echo '  window.ui = SwaggerUIBundle({' >> "public/swagger-${service}-initializer.js"
-            echo '    url: "./docs/'"${service}"'-swagger.json",' >> "public/swagger-${service}-initializer.js"
-            echo '    dom_id: "#swagger-ui",' >> "public/swagger-${service}-initializer.js"
-            echo '    deepLinking: true,' >> "public/swagger-${service}-initializer.js"
-            echo '    presets: [' >> "public/swagger-${service}-initializer.js"
-            echo '      SwaggerUIBundle.presets.apis,' >> "public/swagger-${service}-initializer.js"
-            echo '      SwaggerUIStandalonePreset' >> "public/swagger-${service}-initializer.js"
-            echo '    ],' >> "public/swagger-${service}-initializer.js"
-            echo '    plugins: [' >> "public/swagger-${service}-initializer.js"
-            echo '      SwaggerUIBundle.plugins.DownloadUrl' >> "public/swagger-${service}-initializer.js"
-            echo '    ],' >> "public/swagger-${service}-initializer.js"
-            echo '    layout: "StandaloneLayout"' >> "public/swagger-${service}-initializer.js"
-            echo '  });' >> "public/swagger-${service}-initializer.js"
-            echo '};' >> "public/swagger-${service}-initializer.js"
-          done
+          cp docs/subs-swagger.json public/docs/subs-swagger.json
+
+          # --------------------
+          # Override swagger initializer
+          # --------------------
+          cat > public/swagger-initializer.js << 'EOF'
+          window.onload = function () {
+            window.ui = SwaggerUIBundle({
+              url: "./docs/subs-swagger.json",
+              dom_id: "#swagger-ui",
+              deepLinking: true,
+              presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+              ],
+              plugins: [
+                SwaggerUIBundle.plugins.DownloadUrl
+              ],
+              layout: "StandaloneLayout"
+            });
+          };
+          EOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
-
   # --------------------
   # DEPLOY PAGES
   # --------------------
