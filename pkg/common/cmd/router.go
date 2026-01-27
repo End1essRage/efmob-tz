@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	m "github.com/end1essrage/efmob-tz/pkg/common/interfaces/http/middleware"
 	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,32 +12,34 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-var MiddlewareLogger func(http.Handler) http.Handler = func(next http.Handler) http.Handler {
-	l := logger.Logger().Log("router", "middleware")
+var MiddlewareLogger = func(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Создаем обертку для ResponseWriter для получения статуса
+		// Получаем RequestID из контекста
+		requestID := middleware.GetReqID(r.Context())
+
+		// Создаем обертку для ResponseWriter
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-		// Выполняем следующий обработчик
+		// Выполняем запрос
 		next.ServeHTTP(ww, r)
 
-		// Логируем информацию о запросе
+		// Логируем
 		duration := time.Since(start)
 
-		fields := make(logrus.Fields)
-		fields["router"] = "middleware"
-		fields["method"] = r.Method
-		fields["path"] = r.URL.Path
-		fields["remote_addr"] = r.RemoteAddr
-		fields["status"] = ww.Status()
-		fields["duration"] = duration.String()
-		fields["duration_ms"] = duration.Milliseconds()
-		fields["user_agent"] = r.UserAgent()
-		fields["time"] = start.Format(time.RFC3339)
-
-		l.WithFields(fields).Info()
+		logger.Logger().Log("router", "middleware").WithFields(logrus.Fields{
+			"request_id":  requestID,
+			"method":      r.Method,
+			"path":        r.URL.Path,
+			"remote_addr": r.RemoteAddr,
+			"status":      ww.Status(),
+			"duration":    duration.String(),
+			"duration_ms": duration.Milliseconds(),
+			"user_agent":  r.UserAgent(),
+			"time":        start.Format(time.RFC3339),
+			"bytes":       ww.BytesWritten(),
+		}).Info("HTTP request")
 	})
 }
 
@@ -45,7 +48,21 @@ func CreateRouter() *chi.Mux {
 	r := chi.NewRouter()
 
 	// порядок важен
+	// 1. Recovery middleware (обработка паник)
+	r.Use(middleware.Recoverer)
+
+	// 2. Request ID middleware
+	r.Use(middleware.RequestID)
+
+	// 3. Rate limiter (например, 100 запросов в минуту с burst 10)
+	rateLimiter := m.NewRateLimiter(time.Minute, 100, 10)
+	r.Use(m.RateLimitMiddleware(rateLimiter))
+
+	// 4. Logging middleware
 	r.Use(MiddlewareLogger)
+
+	// 5. Timeout middleware (таймаут 30 секунд на запрос)
+	r.Use(middleware.Timeout(30 * time.Second))
 
 	// swagger docs
 	r.Get("/swagger/*", httpSwagger.Handler(

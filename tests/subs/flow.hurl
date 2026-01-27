@@ -19,14 +19,14 @@ sub_id: jsonpath "$.id"  # <-- присваивание переменной з�
 
 
 # Обновляем подписку
-PUT http://subs:8080/subscriptions/{{sub_id}}
+PATCH http://subs:8080/subscriptions/{{sub_id}}
 Content-Type: application/json
-
 {
-  "price": 500
+  "price": 500,
+  "start_date": "08-2025"
 }
 
-HTTP/1.1 200
+HTTP/1.1 202
 [Asserts]
 jsonpath "$.price" == 500
 
@@ -48,4 +48,4 @@ GET http://subs:8080/subscriptions/{{sub_id}}
 
 HTTP/1.1 404
 [Asserts]
-jsonpath "$.error" == "SUBSCRIPTION_NOT_FOUND"
+jsonpath "$.error" == "NOT_FOUND"
