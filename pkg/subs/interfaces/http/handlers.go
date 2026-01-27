@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/end1essrage/efmob-tz/pkg/common/interfaces/http/utils"
 	"github.com/end1essrage/efmob-tz/pkg/common/persistance"
@@ -182,20 +183,36 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	//собираем квери
-	sD, err := parseOptionalDate(w, req.From)
-	if err != nil {
-		return
-	}
+	// Парсим optional dates
+	var period *domain.Period
+	if req.From != nil || req.To != nil {
+		sD, err := parseOptionalDate(w, req.From)
+		if err != nil {
+			return
+		}
 
-	eD, err := parseOptionalDate(w, req.To)
-	if err != nil {
-		return
-	}
+		eD, err := parseOptionalDate(w, req.To)
+		if err != nil {
+			return
+		}
 
-	period, err := domain.NewPeriod(*sD, *eD)
-	if err != nil {
-		h.writeAppError(w, err)
-		return
+		// Создаем период только если у нас есть хотя бы одна дата
+		if sD != nil || eD != nil {
+			var start, end time.Time
+			if sD != nil {
+				start = *sD
+			}
+			if eD != nil {
+				end = *eD
+			}
+
+			p, err := domain.NewPeriod(start, end)
+			if err != nil {
+				h.writeAppError(w, err)
+				return
+			}
+			period = p
+		}
 	}
 
 	// собираем пагинацию

@@ -38,7 +38,6 @@ func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscr
 		return nil, err
 	}
 
-	//TODO retry - на уровне реализации
 	if _, err := h.repo.Create(ctx, sub); err != nil {
 		// ошибка на стороне репозитория
 		return nil, err
