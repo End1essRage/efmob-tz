@@ -45,149 +45,131 @@ jobs:
       - run: go test -v  ./...
 
   # --------------------
-  # API TESTS (HURL)
+  # API TESTS (HURL) - с использованием Docker Compose
   # --------------------
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'push'
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-
-      - name: Install HURL (using curl and GitHub API)
+      - name: Setup Docker Compose
         run: |
-          # Получаем информацию о последнем релизе через GitHub API
-          echo "Getting HURL download URL..."
+          # Устанавливаем Docker Compose v2
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-v2
+          docker compose version
 
-          # Используем конкретную версию
-          VERSION="4.2.0"
-
-          # Получаем URL для скачивания для Linux x86_64
-          # Ищем правильный asset в релизе
-          ASSET_URL=$(curl -s "https://api.github.com/repos/Orange-OpenSource/hurl/releases/tags/${VERSION}" | \
-            grep -E 'browser_download_url.*(linux.*tar\.gz|x86_64.*tar\.gz)' | \
-            grep -v '.sha256' | \
-            head -1 | \
-            cut -d'"' -f4)
-
-          if [ -z "$ASSET_URL" ]; then
-            # Если не нашли, пробуем альтернативные варианты
-            echo "Trying to find alternative download URL..."
-            ASSET_URL="https://github.com/Orange-OpenSource/hurl/releases/download/${VERSION}/hurl-${VERSION}-x86_64-linux.tar.gz"
-          fi
-
-          echo "Downloading from: $ASSET_URL"
-
-          # Скачиваем
-          curl -L -o hurl.tar.gz "$ASSET_URL"
-
-          # Проверяем что файл скачался
-          if [ ! -f "hurl.tar.gz" ]; then
-            echo "Failed to download HURL"
-            exit 1
-          fi
-
-          # Распаковываем
-          tar -xzf hurl.tar.gz
-
-          # Находим директорию с бинарниками (она может называться по-разному)
-          if [ -d "hurl-${VERSION}" ]; then
-            cd "hurl-${VERSION}"
-          elif [ -d "hurl-${VERSION}-x86_64-linux" ]; then
-            cd "hurl-${VERSION}-x86_64-linux"
-          else
-            # Ищем любую директорию начинающуюся с hurl-
-            DIR_NAME=$(find . -maxdepth 1 -type d -name "hurl-*" | head -1)
-            if [ -n "$DIR_NAME" ]; then
-              cd "$DIR_NAME"
-            fi
-          fi
-
-          # Устанавливаем бинарники
-          sudo cp -f bin/hurl /usr/local/bin/
-          sudo cp -f bin/hurlfmt /usr/local/bin/
-          sudo chmod +x /usr/local/bin/hurl /usr/local/bin/hurlfmt
-
-          # Проверяем установку
-          echo "HURL version:"
-          hurl --version || echo "Failed to run hurl"
-          echo "HURLFMT version:"
-          hurlfmt --version || echo "Failed to run hurlfmt"
-
-      - name: Build application
+      - name: Prepare test environment
         run: |
-          go build -o subs-service ./cmd/subs/
+          # Создаем .env файл для тестовой среды
+          cat > .env << 'EOF'
+          # Database
+          POSTGRES_USER=test
+          POSTGRES_PASSWORD=test
+          POSTGRES_DB=testdb
 
-      - name: Run service
-        env:
-          POSTGRES_DSN: "host=localhost user=test password=test dbname=testdb port=5432 sslmode=disable"
-          ENV: test
-          SERVICE_NAME: subs
-          PORT: "8080"
+          # Application
+          ENV=test
+          SERVICE_NAME=subs
+          PORT=8080
+
+          # PostgreSQL DSN для тестов
+          POSTGRES_DSN=host=postgres user=test password=test dbname=testdb port=5432 sslmode=disable
+
+          # Отключаем ненужные сервисы для CI
+          DISABLE_TRAEFIK=true
+          DISABLE_SWAGGER_UI=true
+          EOF
+
+      - name: Build and start services
         run: |
-          # Запускаем сервис в фоне
-          ./subs-service &
-          SERVER_PID=$!
+          # Собираем и запускаем только необходимые сервисы для тестов
+          echo "Building and starting services..."
 
-          # Ждем запуска
-          echo "Waiting for service to start..."
+          # Собираем сервис
+          docker compose build subs
+
+          # Запускаем зависимости
+          docker compose up -d postgres
+
+          # Ждем пока PostgreSQL запустится
+          echo "Waiting for PostgreSQL to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:8080/health > /dev/null; then
-              echo "Service started successfully"
+            if docker compose exec -T postgres pg_isready -U test; then
+              echo "PostgreSQL is ready!"
               break
             fi
-            echo "Waiting for service to start... ($i/30)"
+            echo "Waiting for PostgreSQL... ($i/30)"
             sleep 2
           done
 
-          # Проверяем что сервис запустился
-          if ! curl -s http://localhost:8080/health > /dev/null; then
-            echo "Service failed to start"
-            exit 1
-          fi
+          # Запускаем основной сервис
+          docker compose up -d subs
 
-          # Сохраняем PID для cleanup
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-
-      - name: Run HURL tests
-        run: |
-          echo "Running HURL tests..."
-          echo "Found test files:"
-          find tests -name "*.hurl" -type f
-
-          # Запускаем все тесты по одному
-          for file in $(find tests -name "*.hurl" -type f); do
-            echo "Running $file..."
-            hurl --test "$file"
+          # Ждем пока сервис запустится
+          echo "Waiting for subs service to start..."
+          for i in {1..30}; do
+            if docker compose exec -T subs wget -qO- http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Subs service is ready!"
+              break
+            fi
+            echo "Waiting for subs service... ($i/30)"
+            sleep 2
           done
 
-      - name: Cleanup
+      - name: Run HURL tests via Docker Compose
+        run: |
+          echo "Running HURL tests using docker-compose..."
+
+          # Проверяем наличие сервиса api-tests в docker-compose
+          if docker compose config --services | grep -q "api-tests"; then
+            echo "Using api-tests service from docker-compose..."
+            docker compose run --rm api-tests
+          else
+            echo "Creating and running HURL tests container..."
+            # Если сервиса api-tests нет, создаем временный контейнер
+            docker run --rm \
+              --network "$(docker compose ps -q subs | xargs docker inspect -f '{{.NetworkSettings.Networks}}' | grep -o '_[^ ]*' | head -1 | tr -d '_')" \
+              -v "$PWD/tests:/tests:ro" \
+              ghcr.io/orange-opensource/hurl:4.2.0 \
+              sh -c "
+                echo 'Waiting for subs service to respond...'
+                for i in {1..10}; do
+                  if wget -qO- http://subs:8080/health > /dev/null 2>&1; then
+                    echo 'Service is responding!'
+                    break
+                  fi
+                  echo 'Waiting... (\$i/10)'
+                  sleep 2
+                done
+
+                echo 'Running HURL tests...'
+                find /tests -name '*.hurl' -type f
+
+                # Запускаем все тесты
+                for file in /tests/**/*.hurl; do
+                  if [ -f \"\$file\" ]; then
+                    echo \"Running test: \$file\"
+                    hurl --test \"\$file\"
+                  fi
+                done
+              "
+          fi
+
+      - name: Check service logs on failure
+        if: failure()
+        run: |
+          echo "========== Service logs =========="
+          docker compose logs --tail=50
+          echo "========== End logs =========="
+
+      - name: Stop and cleanup
         if: always()
         run: |
-          if [ -n "$SERVER_PID" ]; then
-            echo "Stopping server with PID: $SERVER_PID"
-            kill $SERVER_PID 2>/dev/null || true
-          fi
+          docker compose down -v --remove-orphans
 
   # --------------------
   # SEMGREP (PR)
@@ -326,7 +308,8 @@ jobs:
                 ],
                 layout: "StandaloneLayout"
               });
-            };`EOF'
+            };
+            EOF
           done
 
       - name: Upload Pages artifact
