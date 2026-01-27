@@ -8,7 +8,11 @@ on:
 env:
   GO_VERSION: "1.24"
   GOFLAGS: "-mod=readonly"
-  SERVICES: subs
+  SERVICES: "subs"
+  COMPOSE_FILES: |
+    docker-compose.yaml
+    ./observability/docker-compose.yaml
+    ./infrastructure/docker-compose.yaml
 
 jobs:
   # --------------------
@@ -42,7 +46,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+<<<<<<< HEAD
       - run: go test -v  ./...
+=======
+      - run: go test -v ./...
+>>>>>>> master
 
   # --------------------
   # API TESTS (HURL)
@@ -50,20 +58,33 @@ jobs:
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
+<<<<<<< HEAD
     needs: integration-tests # ждем, пока интеграционные тесты подняли сервисы
     services:
       docker:
         image: docker:27-dind
         options: --privileged
+=======
+    if: github.event_name == 'pull_request'
+
+    env:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+>>>>>>> master
 
     steps:
       - uses: actions/checkout@v4
 
+<<<<<<< HEAD
       - name: Install Docker Compose
+=======
+      - name: Make scripts executable
+>>>>>>> master
         run: |
-          docker version
-          docker compose version || sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+          chmod +x .github/scripts/*.sh
 
+<<<<<<< HEAD
       - name: Build and start services
         run: |
           docker compose -f docker-compose.yml up -d --build
@@ -75,6 +96,27 @@ jobs:
       - name: Tear down services
         if: always()
         run: docker compose -f docker-compose.yml down
+=======
+      - name: Setup Docker Compose
+        run: ./.github/scripts/docker-compose.sh setup
+
+      - name: Prepare test environment
+        run: ./.github/scripts/prepare-test-env.sh
+
+      - name: Build and start services
+        run: ./.github/scripts/docker-compose.sh start-services
+
+      - name: Run HURL tests
+        run: ./.github/scripts/run-hurl-tests.sh
+
+      - name: Check service logs on failure
+        if: failure()
+        run: ./.github/scripts/docker-compose.sh logs
+
+      - name: Stop and cleanup
+        if: always()
+        run: ./.github/scripts/docker-compose.sh cleanup
+>>>>>>> master
 
   # --------------------
   # SEMGREP (PR)
@@ -95,12 +137,15 @@ jobs:
         uses: returntocorp/semgrep-action@v1
         with:
           config: auto
+<<<<<<< HEAD
           generateSarif: true
 
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep-results.sarif
+=======
+>>>>>>> master
 
   # --------------------
   # GOVULNCHECK
@@ -156,6 +201,7 @@ jobs:
   # --------------------
   swagger-pages:
     if: github.ref == 'refs/heads/master'
+    needs: swagger-check
     runs-on: ubuntu-latest
 
     permissions:
@@ -163,9 +209,15 @@ jobs:
       pages: write
       id-token: write
 
+    env:
+      SERVICES: "subs"
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x .github/scripts/*.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -178,6 +230,7 @@ jobs:
           npm install swagger-ui-dist
 
       - name: Build GitHub Pages
+<<<<<<< HEAD
         run: |
           set -e
 
@@ -222,6 +275,9 @@ jobs:
             };
             EOF
           done
+=======
+        run: ./.github/scripts/build-swagger-site.sh
+>>>>>>> master
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -231,7 +287,7 @@ jobs:
   # --------------------
   # DEPLOY PAGES
   # --------------------
-  deploy:
+  deploy-pages:
     needs: swagger-pages
     runs-on: ubuntu-latest
 
