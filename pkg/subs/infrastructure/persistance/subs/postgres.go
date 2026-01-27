@@ -2,8 +2,9 @@ package subs
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
-	"math/rand"
 	"time"
 
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
@@ -163,6 +164,24 @@ func (r *GormSubscriptionRepo) CalculateTotal(ctx context.Context, q domain.Subs
 	return int(count), nil
 }
 
+// cryptoRandInt генерирует случайное число используя crypto/rand
+func cryptoRandInt(max int) (int, error) {
+	if max <= 0 {
+		return 0, errors.New("max must be positive")
+	}
+
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return 0, err
+	}
+
+	// Преобразуем байты в uint64
+	val := binary.BigEndian.Uint64(buf[:])
+
+	// Приводим к диапазону [0, max)
+	return int(val % uint64(max)), nil
+}
+
 // TODO метрика
 func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) error {
 	const retries = 3
@@ -171,7 +190,13 @@ func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) e
 	var lastErr error
 	for i := 0; i < retries; i++ {
 		//jitter
-		sleep := interval + time.Duration(rand.Intn(500))*time.Millisecond
+		jitter, err := cryptoRandInt(500)
+		if err != nil {
+			// Fallback к фиксированному значению при ошибке
+			jitter = 250
+		}
+
+		sleep := interval + time.Duration(jitter)*time.Millisecond
 		if i > 0 {
 			select {
 			case <-ctx.Done():
