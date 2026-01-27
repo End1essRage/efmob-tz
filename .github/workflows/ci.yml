@@ -250,25 +250,23 @@ jobs:
             cp "$SWAGGER_FILE" "public/docs/${service}-swagger.json"
 
             # --------------------
-            # Generate initializer for each service
+            # Generate initializer for each service - БЕЗ HEREDOC
             # --------------------
-            cat > "public/swagger-${service}-initializer.js" << 'INIT_EOF'
-            window.onload = function () {
-              window.ui = SwaggerUIBundle({
-                url: "./docs/${service}-swagger.json",
-                dom_id: "#swagger-ui",
-                deepLinking: true,
-                presets: [
-                  SwaggerUIBundle.presets.apis,
-                  SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                  SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-              });
-            };
-            INIT_EOF
+            echo 'window.onload = function () {' > "public/swagger-${service}-initializer.js"
+            echo '  window.ui = SwaggerUIBundle({' >> "public/swagger-${service}-initializer.js"
+            echo '    url: "./docs/'"${service}"'-swagger.json",' >> "public/swagger-${service}-initializer.js"
+            echo '    dom_id: "#swagger-ui",' >> "public/swagger-${service}-initializer.js"
+            echo '    deepLinking: true,' >> "public/swagger-${service}-initializer.js"
+            echo '    presets: [' >> "public/swagger-${service}-initializer.js"
+            echo '      SwaggerUIBundle.presets.apis,' >> "public/swagger-${service}-initializer.js"
+            echo '      SwaggerUIStandalonePreset' >> "public/swagger-${service}-initializer.js"
+            echo '    ],' >> "public/swagger-${service}-initializer.js"
+            echo '    plugins: [' >> "public/swagger-${service}-initializer.js"
+            echo '      SwaggerUIBundle.plugins.DownloadUrl' >> "public/swagger-${service}-initializer.js"
+            echo '    ],' >> "public/swagger-${service}-initializer.js"
+            echo '    layout: "StandaloneLayout"' >> "public/swagger-${service}-initializer.js"
+            echo '  });' >> "public/swagger-${service}-initializer.js"
+            echo '};' >> "public/swagger-${service}-initializer.js"
           done
 
       - name: Upload Pages artifact
