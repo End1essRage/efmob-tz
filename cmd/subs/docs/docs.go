@@ -15,22 +15,299 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/test": {
+        "/subscriptions": {
             "get": {
-                "description": "SimpleTest",
+                "description": "List subscriptions with filters",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "subs"
                 ],
-                "summary": "Test",
+                "summary": "List subscriptions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID (UUID)",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Service name",
+                        "name": "service_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start period (MM-YYYY)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End period (MM-YYYY)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/http.Subscription"
+                            }
+                        }
+                    },
                     "400": {
-                        "description": "Invalid request",
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal server error",
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new subscription",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Create subscription",
+                "parameters": [
+                    {
+                        "description": "Subscription data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.SubscriptionCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/http.Subscription"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/total": {
+            "get": {
+                "description": "Calculate total cost for selected period",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Calculate total subscription cost",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID (UUID)",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Service name",
+                        "name": "service_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Period start (MM-YYYY)",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Period end (MM-YYYY)",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.TotalCostResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/{id}": {
+            "get": {
+                "description": "Get subscription by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Get subscription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.Subscription"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete subscription by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Delete subscription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update subscription by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subs"
+                ],
+                "summary": "Update subscription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.SubscriptionUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/http.Subscription"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
                         }
@@ -50,6 +327,86 @@ const docTemplate = `{
                 "error": {
                     "description": "Error message\nexample: invalid request",
                     "type": "string"
+                }
+            }
+        },
+        "http.Subscription": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true\nexample: 07-2026",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID (UUID)\nexample: bb601f22-2bf3-4721-ae6f-7636e79a0cba",
+                    "type": "string"
+                },
+                "price": {
+                    "description": "Subscription price in rubles\nexample: 400",
+                    "type": "integer"
+                },
+                "service_name": {
+                    "description": "Service name\nexample: Yandex Plus",
+                    "type": "string"
+                },
+                "start_date": {
+                    "description": "Subscription start date in MM-YYYY format\nexample: 07-2025",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "User ID (UUID)\nexample: 60601fee-2bf1-4721-ae6f-7636e79a0cba",
+                    "type": "string"
+                }
+            }
+        },
+        "http.SubscriptionCreateRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true",
+                    "type": "string"
+                },
+                "price": {
+                    "description": "Subscription price in rubles\nrequired: true",
+                    "type": "integer"
+                },
+                "service_name": {
+                    "description": "Service name\nrequired: true",
+                    "type": "string"
+                },
+                "start_date": {
+                    "description": "Subscription start date in MM-YYYY format\nrequired: true",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "User ID (UUID)\nrequired: true",
+                    "type": "string"
+                }
+            }
+        },
+        "http.SubscriptionUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true",
+                    "type": "string"
+                },
+                "price": {
+                    "description": "Subscription price in rubles\nrequired: true",
+                    "type": "integer"
+                },
+                "start_date": {
+                    "description": "Subscription start date in MM-YYYY format\nrequired: true",
+                    "type": "string"
+                }
+            }
+        },
+        "http.TotalCostResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "description": "Total subscription cost in rubles\nexample: 1200",
+                    "type": "integer"
                 }
             }
         }

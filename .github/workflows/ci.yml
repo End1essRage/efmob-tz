@@ -42,17 +42,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - run: go test -v -tags='!integration' ./...
+      - run: go test -v  ./...
 
   # --------------------
-  # INTEGRATION TESTS (PR)
+  # API TESTS (HURL)
   # --------------------
-  integration-tests:
-    name: Integration tests
+  api-tests:
+    name: Hurl API Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    continue-on-error: true
-
+    needs: integration-tests # ждем, пока интеграционные тесты подняли сервисы
     services:
       docker:
         image: docker:27-dind
@@ -61,21 +59,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-
       - name: Install Docker Compose
         run: |
           docker version
           docker compose version || sudo apt-get update && sudo apt-get install -y docker-compose-plugin
 
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run integration tests
+      - name: Build and start services
         run: |
-          go test -v -tags=integration ./pkg/subs/application/tests/...
+          docker compose -f docker-compose.yml up -d --build
+
+      - name: Run Hurl API tests
+        run: |
+          docker compose -f docker-compose.yml run --rm api-tests
+
+      - name: Tear down services
+        if: always()
+        run: docker compose -f docker-compose.yml down
 
   # --------------------
   # SEMGREP (PR)
@@ -101,7 +100,7 @@ jobs:
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep.sarif
+          sarif_file: semgrep-results.sarif
 
   # --------------------
   # GOVULNCHECK
@@ -191,35 +190,38 @@ jobs:
           cp -r node_modules/swagger-ui-dist/* public/
 
           # --------------------
-          # Copy swagger definition
+          # Copy swagger definitions dynamically from SERVICES
           # --------------------
-          if [ ! -f "docs/subs-swagger.json" ]; then
-            echo "❌ docs/subs-swagger.json not found"
-            exit 1
-          fi
+          IFS=',' read -ra SERVICE_LIST <<< "$SERVICES"
+          for service in "${SERVICE_LIST[@]}"; do
+            SWAGGER_FILE="docs/${service}-swagger.json"
+            if [ ! -f "$SWAGGER_FILE" ]; then
+              echo "❌ $SWAGGER_FILE not found"
+              exit 1
+            fi
+            cp "$SWAGGER_FILE" "public/docs/${service}-swagger.json"
 
-          cp docs/subs-swagger.json public/docs/subs-swagger.json
-
-          # --------------------
-          # Override swagger initializer
-          # --------------------
-          cat > public/swagger-initializer.js << 'EOF'
-          window.onload = function () {
-            window.ui = SwaggerUIBundle({
-              url: "./docs/subs-swagger.json",
-              dom_id: "#swagger-ui",
-              deepLinking: true,
-              presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
-              ],
-              plugins: [
-                SwaggerUIBundle.plugins.DownloadUrl
-              ],
-              layout: "StandaloneLayout"
-            });
-          };
-          EOF
+            # --------------------
+            # Generate initializer for each service
+            # --------------------
+            cat > "public/swagger-${service}-initializer.js" << EOF
+            window.onload = function () {
+              window.ui = SwaggerUIBundle({
+                url: "./docs/${service}-swagger.json",
+                dom_id: "#swagger-ui",
+                deepLinking: true,
+                presets: [
+                  SwaggerUIBundle.presets.apis,
+                  SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                  SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout"
+              });
+            };
+            EOF
+          done
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

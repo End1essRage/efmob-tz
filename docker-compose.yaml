@@ -5,7 +5,7 @@ networks:
 # общие энвы
 x-common-env: &common-env
   PORT: 8080
-  ENV: dev
+  ENV: test
 
 # Общие настройки для всех сервисов
 x-service-defaults: &service-defaults
@@ -109,7 +109,12 @@ services:
         - SERVICE_NAME=subs
     environment:
       <<: *common-env
+      # вынести в секреты
+      POSTGRES_DSN: "host=postgres user=postgres password=pass dbname=subs port=5432 sslmode=disable"
       SERVICE_NAME: subs
+    depends_on:
+      postgres:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
         # ===== API =====
