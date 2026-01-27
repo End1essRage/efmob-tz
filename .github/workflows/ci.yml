@@ -8,7 +8,7 @@ on:
 env:
   GO_VERSION: "1.24"
   GOFLAGS: "-mod=readonly"
-  SERVICES: subs
+  SERVICES: "subs"
   COMPOSE_FILES: |
     docker-compose.yaml
     ./observability/docker-compose.yaml
@@ -46,18 +46,17 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - run: go test -v  ./...
+      - run: go test -v ./...
 
   # --------------------
-  # API TESTS (HURL) - с использованием Docker Compose
+  # API TESTS (HURL)
   # --------------------
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: github.event_name == 'pull_request'
 
     env:
-      # Локальные env для этого job
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       POSTGRES_DB: testdb
@@ -66,190 +65,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Docker Compose
-        run: |
-          # Устанавливаем Docker Compose v2
-          sudo apt-get update
-          sudo apt-get install -y docker-compose-v2
-          docker compose version
+        run: ./.github/scripts/docker-compose.sh setup
 
       - name: Prepare test environment
-        run: |
-          # Создаем .env файл для тестовой среды
-          cat > .env << 'EOF'
-          # Application
-          ENV=test
-          SERVICE_NAME=subs
-          PORT=8080
-
-          # PostgreSQL DSN для тестов
-          POSTGRES_DSN=host=postgres user=${{ env.POSTGRES_USER }} password=${{ env.POSTGRES_PASSWORD }} dbname=${{ env.POSTGRES_DB }} port=5432 sslmode=disable
-
-          # Отключаем ненужные сервисы для CI
-          DISABLE_TRAEFIK=true
-          DISABLE_SWAGGER_UI=true
-          EOF
+        run: ./.github/scripts/prepare-test-env.sh
 
       - name: Build and start services
-        run: |
-          # Функция для генерации флагов docker-compose
-          generate_compose_flags() {
-            local compose_files="$1"
-            local flags=""
+        run: ./.github/scripts/docker-compose.sh start-services
 
-            while IFS= read -r line || [[ -n "$line" ]]; do
-              trimmed_line=$(echo "$line" | xargs)
-              if [[ -n "$trimmed_line" ]]; then
-                flags="$flags -f $trimmed_line"
-              fi
-            done <<< "$compose_files"
-
-            echo "${flags# }"
-          }
-
-          # Генерируем флаги
-          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
-          echo "Using docker compose flags: $COMPOSE_FLAGS"
-
-          # Собираем и запускаем только необходимые сервисы для тестов
-          echo "Building and starting services..."
-
-          # Собираем сервис
-          docker compose $COMPOSE_FLAGS build subs
-
-          # Запускаем зависимости
-          docker compose $COMPOSE_FLAGS up -d postgres
-
-          # Ждем пока PostgreSQL запустится
-          echo "Waiting for PostgreSQL to start..."
-          for i in {1..30}; do
-            if docker compose $COMPOSE_FLAGS exec -T postgres pg_isready -U ${{ env.POSTGRES_USER }}; then
-              echo "PostgreSQL is ready!"
-              break
-            fi
-            echo "Waiting for PostgreSQL... ($i/30)"
-            sleep 2
-          done
-
-          # Запускаем основной сервис
-          docker compose $COMPOSE_FLAGS up -d subs
-
-          # Ждем пока сервис запустится
-          echo "Waiting for subs service to start..."
-          for i in {1..30}; do
-            if docker compose $COMPOSE_FLAGS exec -T subs wget -qO- http://localhost:8080/health > /dev/null 2>&1; then
-              echo "Subs service is ready!"
-              break
-            fi
-            echo "Waiting for subs service... ($i/30)"
-            sleep 2
-          done
-
-      - name: Run HURL tests via Docker Compose
-        run: |
-          # Функция для генерации флагов docker-compose
-          generate_compose_flags() {
-            local compose_files="$1"
-            local flags=""
-
-            while IFS= read -r line || [[ -n "$line" ]]; do
-              trimmed_line=$(echo "$line" | xargs)
-              if [[ -n "$trimmed_line" ]]; then
-                flags="$flags -f $trimmed_line"
-              fi
-            done <<< "$compose_files"
-
-            echo "${flags# }"
-          }
-
-          # Генерируем флаги
-          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
-
-          echo "Running HURL tests using docker-compose..."
-          echo "Compose flags: $COMPOSE_FLAGS"
-
-          # Проверяем наличие сервиса api-tests в docker-compose
-          if docker compose $COMPOSE_FLAGS config --services | grep -q "api-tests"; then
-            echo "Using api-tests service from docker-compose..."
-            docker compose $COMPOSE_FLAGS run --rm api-tests
-          else
-            echo "Creating and running HURL tests container..."
-            # Если сервиса api-tests нет, создаем временный контейнер
-            # Получаем имя сети
-            NETWORK_NAME=$(docker compose $COMPOSE_FLAGS ps -q subs | head -1 | xargs docker inspect -f '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}')
-
-            docker run --rm \
-              --network "$NETWORK_NAME" \
-              -v "$PWD/tests:/tests:ro" \
-              ghcr.io/orange-opensource/hurl:4.2.0 \
-              sh -c "
-                echo 'Waiting for subs service to respond...'
-                for i in {1..10}; do
-                  if wget -qO- http://subs:8080/health > /dev/null 2>&1; then
-                    echo 'Service is responding!'
-                    break
-                  fi
-                  echo 'Waiting... (\$i/10)'
-                  sleep 2
-                done
-
-                echo 'Running HURL tests...'
-                find /tests -name '*.hurl' -type f
-
-                # Запускаем все тесты
-                for file in /tests/**/*.hurl; do
-                  if [ -f \"\$file\" ]; then
-                    echo \"Running test: \$file\"
-                    hurl --test \"\$file\"
-                  fi
-                done
-              "
-          fi
+      - name: Run HURL tests
+        run: ./.github/scripts/run-hurl-tests.sh
 
       - name: Check service logs on failure
         if: failure()
-        run: |
-          # Функция для генерации флагов docker-compose
-          generate_compose_flags() {
-            local compose_files="$1"
-            local flags=""
-
-            while IFS= read -r line || [[ -n "$line" ]]; do
-              trimmed_line=$(echo "$line" | xargs)
-              if [[ -n "$trimmed_line" ]]; then
-                flags="$flags -f $trimmed_line"
-              fi
-            done <<< "$compose_files"
-
-            echo "${flags# }"
-          }
-
-          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
-
-          echo "========== Service logs =========="
-          docker compose $COMPOSE_FLAGS logs --tail=100
-          echo "========== End logs =========="
+        run: ./.github/scripts/docker-compose.sh logs
 
       - name: Stop and cleanup
         if: always()
-        run: |
-          # Функция для генерации флагов docker-compose
-          generate_compose_flags() {
-            local compose_files="$1"
-            local flags=""
-
-            while IFS= read -r line || [[ -n "$line" ]]; do
-              trimmed_line=$(echo "$line" | xargs)
-              if [[ -n "$trimmed_line" ]]; then
-                flags="$flags -f $trimmed_line"
-              fi
-            done <<< "$compose_files"
-
-            echo "${flags# }"
-          }
-
-          COMPOSE_FLAGS=$(generate_compose_flags "$COMPOSE_FILES")
-
-          docker compose $COMPOSE_FLAGS down -v --remove-orphans
+        run: ./.github/scripts/docker-compose.sh cleanup
 
   # --------------------
   # SEMGREP (PR)
@@ -257,7 +90,7 @@ jobs:
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: github.event_name == 'pull_request'
 
     permissions:
       contents: read
@@ -333,11 +166,10 @@ jobs:
       id-token: write
 
     env:
-      SERVICES: "subs" # Добавляем переменную SERVICES
+      SERVICES: "subs"
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -350,55 +182,13 @@ jobs:
           npm install swagger-ui-dist
 
       - name: Build GitHub Pages
-        run: |
-          set -e
-
-          # --------------------
-          # Pages root = Swagger UI
-          # --------------------
-          mkdir -p public/docs
-
-          # Swagger UI кладём прямо в корень pages
-          cp -r node_modules/swagger-ui-dist/* public/
-
-          # --------------------
-          # Copy swagger definitions dynamically from SERVICES
-          # --------------------
-          IFS=',' read -ra SERVICE_LIST <<< "$SERVICES"
-          for service in "${SERVICE_LIST[@]}"; do
-          SWAGGER_FILE="docs/${service}-swagger.json"
-          if [ ! -f "$SWAGGER_FILE" ]; then
-            echo "❌ $SWAGGER_FILE not found"
-            exit 1
-          fi
-          cp "$SWAGGER_FILE" "public/docs/${service}-swagger.json"
-
-          # --------------------
-          # Generate initializer for each service
-          # --------------------
-          cat > "public/swagger-${service}-initializer.js" << 'EOF'
-          window.onload = function () {
-            window.ui = SwaggerUIBundle({
-              url: "./docs/${service}-swagger.json",
-              dom_id: "#swagger-ui",
-              deepLinking: true,
-              presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
-              ],
-              plugins: [
-                SwaggerUIBundle.plugins.DownloadUrl
-              ],
-              layout: "StandaloneLayout"
-            });
-          };
-          EOF
-          done
+        run: ./.github/scripts/build-swagger-site.sh
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
+
   # --------------------
   # DEPLOY PAGES
   # --------------------
