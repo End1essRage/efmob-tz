@@ -74,19 +74,18 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Install HURL
+      - name: Install HURL (direct download)
         run: |
-          # Устанавливаем HURL
-          curl -sSL https://install.hurl.dev | bash -s -- --version 4.2.0
-
-          # Явно добавляем путь в PATH для текущего шага
-          echo "$HOME/.hurl/bin" >> $GITHUB_PATH
+          # Скачиваем HURL напрямую с GitHub
+          VERSION="4.2.0"
+          curl -LO "https://github.com/Orange-OpenSource/hurl/releases/download/${VERSION}/hurl_${VERSION}_linux_x86_64.tar.gz"
+          tar -xzf "hurl_${VERSION}_linux_x86_64.tar.gz"
+          sudo install -m 755 hurl /usr/local/bin/
+          sudo install -m 755 hurlfmt /usr/local/bin/
 
           # Проверяем установку
-          $HOME/.hurl/bin/hurl --version || echo "HURL not found in .hurl/bin"
-
-          # Также проверяем доступность через PATH
-          which hurl || echo "HURL not in PATH yet"
+          hurl --version
+          hurlfmt --version
 
       - name: Build application
         run: |
@@ -123,22 +122,17 @@ jobs:
           # Сохраняем PID для cleanup
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
-      - name: Verify HURL installation
-        run: |
-          # Проверяем, что HURL доступен
-          echo "Current PATH: $PATH"
-          which hurl || echo "HURL not found in PATH"
-          hurl --version || echo "Failed to run hurl"
-
       - name: Run HURL tests
         run: |
-          # Используем явный путь или проверяем glob pattern
           echo "Running HURL tests..."
-          # Попробуем найти файлы
-          find tests -name "*.hurl" -type f | head -5
+          echo "Found test files:"
+          find tests -name "*.hurl" -type f
 
-          # Запускаем тесты
-          hurl --test tests/**/*.hurl || echo "HURL tests failed"
+          # Запускаем все тесты по одному
+          for file in $(find tests -name "*.hurl" -type f); do
+            echo "Running $file..."
+            hurl --test "$file"
+          done
 
       - name: Cleanup
         if: always()
@@ -270,7 +264,7 @@ jobs:
             # --------------------
             # Generate initializer for each service
             # --------------------
-            cat > "public/swagger-${service}-initializer.js" << EOF
+            cat > "public/swagger-${service}-initializer.js" << 'EOF'
             window.onload = function () {
               window.ui = SwaggerUIBundle({
                 url: "./docs/${service}-swagger.json",
