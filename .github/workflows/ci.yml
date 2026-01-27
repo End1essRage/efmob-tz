@@ -50,30 +50,79 @@ jobs:
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
     services:
-      docker:
-        image: docker:27-dind
-        options: --privileged
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Docker Compose
-        run: |
-          docker version
-          docker compose version || sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
 
-      - name: Build and start services
+      - name: Install HURL
         run: |
-          docker compose -f docker-compose.yml up -d --build
+          curl -sSL https://install.hurl.dev | bash -s -- --version 4.2.0
+          echo "$HOME/.hurl/bin" >> $GITHUB_PATH
 
-      - name: Run Hurl API tests
+      - name: Build application
         run: |
-          docker compose -f docker-compose.yml run --rm api-tests
+          go build -o subs-service cmd/subs/main.go
 
-      - name: Tear down services
+      - name: Run service
+        env:
+          POSTGRES_DSN: "host=localhost user=test password=test dbname=testdb port=5432 sslmode=disable"
+          ENV: test
+          PORT: "8080"
+        run: |
+          # Запускаем сервис в фоне
+          ./subs-service &
+          SERVER_PID=$!
+
+          # Ждем запуска (увеличиваем время ожидания)
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/health > /dev/null; then
+              echo "Service started successfully"
+              break
+            fi
+            echo "Waiting for service to start... ($i/30)"
+            sleep 2
+          done
+
+          # Проверяем что сервис запустился
+          if ! curl -s http://localhost:8080/health > /dev/null; then
+            echo "Service failed to start"
+            exit 1
+          fi
+
+          # Сохраняем PID для cleanup
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+      - name: Run HURL tests
+        run: |
+          hurl --test tests/**/*.hurl
+
+      - name: Cleanup
         if: always()
-        run: docker compose -f docker-compose.yml down
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            echo "Stopping server with PID: $SERVER_PID"
+            kill $SERVER_PID 2>/dev/null || true
+          fi
 
   # --------------------
   # SEMGREP (PR)
@@ -81,7 +130,7 @@ jobs:
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
 
     permissions:
       contents: read
