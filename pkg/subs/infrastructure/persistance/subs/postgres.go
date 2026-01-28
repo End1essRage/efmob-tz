@@ -205,6 +205,10 @@ func applySubscriptionQuery(ctx context.Context, db *gorm.DB, q domain.Subscript
 			conds = append(conds, "(start_date <= ?)")
 			args = append(args, to)
 		}
+
+		if q.EndIsNil() != nil && !*q.EndIsNil() {
+			conds = append(conds, "end_date IS NULL")
+		}
 	}
 
 	// Фильтр end_date

@@ -220,6 +220,7 @@ func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request)
 // @Param start_to query string false "Start period to  (MM-YYYY)"
 // @Param end_from query string false "End period from (MM-YYYY)"
 // @Param end_to query string false "End period to  (MM-YYYY)"
+// @Param nil_end query bool false "includes items with empty end_date(by default - true: if end_to != nil - false)"
 // @Param page query int false "Page num can use 0 or 1 for first"
 // @Param page_size query int false "Page Size / Limit"
 // @Param order_by query string false "Sorting field name"
@@ -327,6 +328,7 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 // @Param start_to query string false "Start period to  (MM-YYYY)"
 // @Param end_from query string false "End period from (MM-YYYY)"
 // @Param end_to query string false "End period to  (MM-YYYY)"
+// @Param nil_end query bool false "includes items with empty end_date(by default - true: if end_to != nil - false)"
 // @Success 200 {object} TotalCostResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse

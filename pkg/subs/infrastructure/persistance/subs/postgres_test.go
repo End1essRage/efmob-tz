@@ -232,14 +232,24 @@ func TestSubscriptionRepo_Queries(t *testing.T) {
 		wantCount int
 	}{
 		{
-			name:      "start_from",
+			name:      "start_from default:(NULL included)",
 			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(&startFrom, nil), nil, nil),
 			wantCount: 6, // start >= 2023-11: nullStarts:3 endedSubs:3
 		},
 		{
-			name:      "start_to",
+			name:      "start_from (NULL NOT included)",
+			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(&startFrom, nil), nil, ptrBool(false)),
+			wantCount: 3, // start >= 2023-11: nullStarts:0 endedSubs:3
+		},
+		{
+			name:      "start_to default:(NULL included)",
 			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(nil, &startTo), nil, nil),
 			wantCount: 10, // start <= 2023-12: nullStarts:5 endedSubs:5
+		},
+		{
+			name:      "start_to default:(NULL NOT included)",
+			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(nil, &startTo), nil, ptrBool(false)),
+			wantCount: 5, // start <= 2023-12: nullStarts:0 endedSubs:5
 		},
 		{
 			name:      "start_from + start_to",
