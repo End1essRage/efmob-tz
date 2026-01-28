@@ -2,31 +2,45 @@ package http
 
 import "encoding/json"
 
-// EndDateUpdate представляет обновление для EndDate с тремя состояниями
-type EndDateUpdate struct {
-	Present bool    // Было ли поле передано в запросе
-	Null    bool    // Если true - нужно установить в null
-	Value   *string // Значение если не null
+type NullableStringUpdate struct {
+	present bool
+	null    bool
+	value   string
 }
 
-// UnmarshalJSON для обработки JSON
-func (e *EndDateUpdate) UnmarshalJSON(data []byte) error {
-	e.Present = true
+func (n *NullableStringUpdate) UnmarshalJSON(data []byte) error {
+	n.present = true
 
-	// Проверяем на null
+	// null
 	if string(data) == "null" {
-		e.Null = true
-		e.Value = nil
+		n.null = true
 		return nil
 	}
 
-	// Разбираем строку
+	// string
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
 
-	e.Null = false
-	e.Value = &s
+	// "" → тоже считаем очисткой
+	if s == "" {
+		n.null = true
+		return nil
+	}
+
+	n.value = s
 	return nil
+}
+
+func (n NullableStringUpdate) IsSet() bool {
+	return n.present
+}
+
+func (n NullableStringUpdate) IsNull() bool {
+	return n.present && n.null
+}
+
+func (n NullableStringUpdate) Value() string {
+	return n.value
 }

@@ -51,7 +51,7 @@ type SubscriptionUpdateRequest struct {
 	// Subscription end date in MM-YYYY format, optional
 	// required: false
 	// nullable: true
-	EndDate *EndDateUpdate `json:"end_date,omitempty"` // Указатель для отслеживания присутствия
+	EndDate NullableStringUpdate `json:"end_date,omitempty"`
 }
 
 // SubscriptionQueryRequest
@@ -134,10 +134,8 @@ type Subscription struct {
 	StartDate string `json:"start_date"`
 
 	// Subscription end date in MM-YYYY format, optional
-	// required: false
-	// nullable: true
 	// example: 07-2026
-	EndDate *string `json:"end_date,omitempty"`
+	EndDate string `json:"end_date"`
 }
 
 // ErrorResponse

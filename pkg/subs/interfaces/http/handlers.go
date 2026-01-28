@@ -105,7 +105,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Subscription ID"
 // @Param request body SubscriptionUpdateRequest true "Updated data"
-// @Success 202 {object} Subscription
+// @Success 202 "Accepted"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -138,20 +138,19 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 	setEndDateNull := false // Флаг нужно ли занулять
 
 	// Поле было в запросе
-	if req.EndDate != nil {
+	if req.EndDate.IsSet() {
 		// Занулить
-		if req.EndDate.Null {
+		if req.EndDate.IsNull() {
 			endDate = nil         // означает занулить
 			setEndDateNull = true // Флаг что нужно занулить
-		} else if req.EndDate.Value != nil {
+		} else {
 			// есть значение
-			parsedTime, err := parseDate(w, *req.EndDate.Value)
+			parsedTime, err := parseDate(w, req.EndDate.Value())
 			if err != nil {
 				return
 			}
 			endDate = &parsedTime
 		}
-
 	} else {
 		// если не было остальных полей
 		if req.Price == nil && sD == nil {
@@ -162,21 +161,20 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	record, err := h.container.UpdateSubscriptionHandler.Handle(r.Context(), commands.UpdateSubscriptionCommand{
+	if err := h.container.UpdateSubscriptionHandler.Handle(r.Context(), commands.UpdateSubscriptionCommand{
 		ID:             uid,
 		Price:          req.Price,
 		StartDate:      sD,
 		EndDate:        endDate,
 		SetEndDateNull: setEndDateNull,
-	})
-	if err != nil {
+	}); err != nil {
 		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusAccepted, mapSubscriptionFromDomain(record))
+	utils.WriteJSON(w, http.StatusAccepted, nil)
 }
 
 // DeleteSubscription godoc

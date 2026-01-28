@@ -289,10 +289,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/http.Subscription"
-                        }
+                        "description": "Accepted"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -317,23 +314,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "http.EndDateUpdate": {
-            "type": "object",
-            "properties": {
-                "null": {
-                    "description": "Если true - нужно установить в null",
-                    "type": "boolean"
-                },
-                "present": {
-                    "description": "Было ли поле передано в запросе",
-                    "type": "boolean"
-                },
-                "value": {
-                    "description": "Значение если не null",
-                    "type": "string"
-                }
-            }
-        },
         "http.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -347,11 +327,14 @@ const docTemplate = `{
                 }
             }
         },
+        "http.NullableStringUpdate": {
+            "type": "object"
+        },
         "http.Subscription": {
             "type": "object",
             "properties": {
                 "end_date": {
-                    "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true\nexample: 07-2026",
+                    "description": "Subscription end date in MM-YYYY format, optional\nexample: 07-2026",
                     "type": "string"
                 },
                 "id": {
@@ -408,7 +391,7 @@ const docTemplate = `{
                     "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/http.EndDateUpdate"
+                            "$ref": "#/definitions/http.NullableStringUpdate"
                         }
                     ]
                 },

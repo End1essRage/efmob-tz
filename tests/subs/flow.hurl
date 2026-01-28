@@ -27,8 +27,6 @@ Content-Type: application/json
 }
 
 HTTP/1.1 202
-[Asserts]
-jsonpath "$.price" == 500
 
 # Читаем подписку, чтобы убедиться, что изменения сохранились
 GET http://subs:8080/subscriptions/{{sub_id}}

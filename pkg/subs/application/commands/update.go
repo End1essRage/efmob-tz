@@ -38,7 +38,7 @@ func (h *UpdateSubscriptionHandler) Validate(sub *domain.Subscription, cmd Updat
 	return nil
 }
 
-func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscriptionCommand) (*domain.Subscription, error) {
+func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscriptionCommand) error {
 	log := logger.Logger().WithFields(logger.LogOptions{
 		Pkg:  "UpdateSubscriptionHandler",
 		Func: "Handle",
@@ -48,7 +48,7 @@ func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscr
 	sub, err := h.repo.GetByID(ctx, cmd.ID)
 	if err != nil {
 		log.Errorf("getting error: %v", err)
-		return nil, err
+		return err
 	}
 
 	// обогащаем лог
@@ -58,7 +58,7 @@ func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscr
 
 	if err := h.Validate(sub, cmd); err != nil {
 		log.Errorf("validation error: %v", err)
-		return nil, err
+		return err
 	}
 
 	if cmd.Price != nil {
@@ -66,7 +66,7 @@ func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscr
 
 		if err := sub.ChangePrice(*cmd.Price); err != nil {
 			log.Errorf("price changing error: %v", err)
-			return nil, err
+			return err
 		}
 
 		log.WithFields(logrus.Fields{
@@ -98,8 +98,8 @@ func (h *UpdateSubscriptionHandler) Handle(ctx context.Context, cmd UpdateSubscr
 
 	if err := h.repo.Update(ctx, sub); err != nil {
 		log.Errorf("updating error: %v", err)
-		return nil, err
+		return err
 	}
 
-	return sub, nil
+	return nil
 }
