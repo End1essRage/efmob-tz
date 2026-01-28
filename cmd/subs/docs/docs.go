@@ -63,6 +63,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "includes items with empty end_date(by default - true: if end_to != nil - false)",
+                        "name": "nil_end",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page num can use 0 or 1 for first",
                         "name": "page",
@@ -202,6 +208,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "End period to  (MM-YYYY)",
                         "name": "end_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "includes items with empty end_date(by default - true: if end_to != nil - false)",
+                        "name": "nil_end",
                         "in": "query"
                     }
                 ],
