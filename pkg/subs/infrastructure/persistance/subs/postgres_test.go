@@ -191,12 +191,12 @@ func TestSubscriptionRepo_Queries(t *testing.T) {
 		start time.Time
 		end   time.Time
 	}{
-		{base.AddDate(0, -2, 0), base.AddDate(0, -1, 0)}, // 2023-11-01 → 2023-12-15
-		{base.AddDate(0, -3, 0), base.AddDate(0, -2, 0)}, // 2023-10-01 → 2023-11-01
-		{base.AddDate(0, -4, 0), base.AddDate(0, -3, 0)}, // 2023-09-01 → 2023-09-30
-		{base.AddDate(0, -1, 0), base.AddDate(0, 0, 0)},  // 2023-11-15 → 2024-01-15
-		{base.AddDate(0, -3, 0), base.AddDate(0, -1, 0)}, // 2023-10-15 → 2023-12-10
-		{base.AddDate(0, 1, 0), base.AddDate(0, 2, 0)},   // 2024-02-01 → 2024-03-01
+		{base.AddDate(0, -2, 0), base.AddDate(0, -1, 0)}, // 2023-11 → 2023-12
+		{base.AddDate(0, -3, 0), base.AddDate(0, -2, 0)}, // 2023-10 → 2023-11
+		{base.AddDate(0, -4, 0), base.AddDate(0, -3, 0)}, // 2023-09 → 2023-09
+		{base.AddDate(0, -1, 0), base.AddDate(0, 0, 0)},  // 2023-11 → 2024-01
+		{base.AddDate(0, -3, 0), base.AddDate(0, -1, 0)}, // 2023-10 → 2023-12
+		{base.AddDate(0, 1, 0), base.AddDate(0, 2, 0)},   // 2024-02 → 2024-03
 	}
 	for _, s := range endedSubs {
 		sub, err := domain.NewSubscription(uuid.Nil, userID, "service", 100, s.start, &s.end)
@@ -327,6 +327,99 @@ func TestSubscriptionRepo_Queries(t *testing.T) {
 	}
 }
 
+func TestSubscriptionRepo_BoundaryMonthFilters(t *testing.T) {
+	ctx := context.Background()
+	container, dsn, err := setupPostgresContainer(ctx)
+	if err != nil {
+		t.Fatalf("failed to start postgres container: %v", err)
+	}
+	defer container.Terminate(ctx)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to db: %v", err)
+	}
+
+	repo := NewGormSubscriptionRepo(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("failed to migrate schema: %v", err)
+	}
+
+	userID := uuid.New()
+
+	// Подписки, даты нормализованы, день = 1
+	subs := []struct {
+		start time.Time
+		end   *time.Time
+	}{
+		{time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC), nil},                                                   // start 2023-11-01, end NULL
+		{time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC), ptrTime(time.Date(2024, 01, 1, 0, 0, 0, 0, time.UTC))}, // start 2023-12-01, end 2024-01-01
+		{time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), nil},                                                    // start 2024-01-01, end NULL
+	}
+
+	for _, s := range subs {
+		sub, err := domain.NewSubscription(uuid.Nil, userID, "service", 100, s.start, s.end)
+		assert.NoError(t, err)
+		_, err = repo.Create(ctx, sub)
+		assert.NoError(t, err)
+	}
+
+	// Фильтры по границам месяца
+	startFrom := time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC)
+	startTo := time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC)
+
+	endFrom := time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC)
+	endTo := time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		query     domain.SubscriptionQuery
+		wantCount int
+	}{
+		{
+			name:      "start_from boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(&startFrom, nil), nil, nil),
+			wantCount: 3, // все подписки с start >= 2023-11-01
+		},
+		{
+			name:      "start_to boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(nil, &startTo), nil, nil),
+			wantCount: 2, // start <= 2023-12-01
+		},
+		{
+			name:      "end_from boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, nil, mustPeriod(&endFrom, nil), ptrBool(true)),
+			wantCount: 3, // end >= 2023-12-01 или NULL
+		},
+		{
+			name:      "end_to boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, nil, mustPeriod(nil, &endTo), nil),
+			wantCount: 0, // end <= 2023-12-01
+		},
+		{
+			name:      "end_to boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, nil, mustPeriod(nil, ptrTime(endTo.AddDate(0, 1, 0))), nil),
+			wantCount: 1, // end <= 2024-01-01
+		},
+		{
+			name:      "start + end boundary",
+			query:     domain.NewSubscriptionQuery(&userID, nil, mustPeriod(&startFrom, &startTo), mustPeriod(&endFrom, &endTo), ptrBool(true)),
+			wantCount: 1, // только подписка 2023-12-01 с end 2023-12-01
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := repo.Find(ctx, tt.query, nil, nil)
+			assert.NoError(t, err)
+			assert.Len(t, results, tt.wantCount, "не совпадает количество подписок")
+		})
+	}
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}
 func ptrBool(v bool) *bool { return &v }
 
 func mustPeriod(from, to *time.Time) *domain.Period {
