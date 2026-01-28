@@ -5,22 +5,11 @@ import (
 	"time"
 
 	"github.com/end1essrage/efmob-tz/pkg/common/interfaces/http/utils"
+	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	"github.com/end1essrage/efmob-tz/pkg/common/persistance"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/commands"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/queries"
-	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 )
-
-var mapSubscriptionFromDomain = func(record *domain.Subscription) *Subscription {
-	return &Subscription{
-		ID:          record.ID(),
-		UserID:      record.UserID(),
-		ServiceName: record.ServiceName(),
-		Price:       record.Price(),
-		StartDate:   formatDate(record.StartDate()),
-		EndDate:     formatOptionalDate(record.EndDate()),
-	}
-}
 
 // CreateSubscription godoc
 // @Summary Create subscription
@@ -34,16 +23,25 @@ var mapSubscriptionFromDomain = func(record *domain.Subscription) *Subscription 
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions [post]
 func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "CreateSubscription",
+		Ctx:  r.Context(),
+	})
+
 	var req SubscriptionCreateRequest
-	if !utils.DecodeJSONBody(w, r, &req) {
+	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		log.Errorf("ошибка парсинга тела запроса: %v", err)
 		return
 	}
 	sD, err := parseDate(w, req.StartDate)
 	if err != nil {
+		log.Errorf("ошибка парсинга даты: %v", err)
 		return
 	}
 	eD, err := parseOptionalDate(w, req.EndDate)
 	if err != nil {
+		log.Errorf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
@@ -57,6 +55,7 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 
 	record, err := h.container.CreateSubscriptionHandler.Handle(r.Context(), cmd)
 	if err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -76,6 +75,12 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [get]
 func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "GetSubscription",
+		Ctx:  r.Context(),
+	})
+
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
 		return
@@ -83,6 +88,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.container.GetSubscriptionHandler.Handle(r.Context(), queries.GetSubscriptionQuery{ID: uid})
 	if err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -105,33 +111,67 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [patch]
 func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "UpdateSubscription",
+		Ctx:  r.Context(),
+	})
+
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
 		return
 	}
 
 	var req SubscriptionUpdateRequest
-	if !utils.DecodeJSONBody(w, r, &req) {
+	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		log.Errorf("ошибка парсинга тела запроса: %v", err)
 		return
 	}
 
-	sD, err := parseDate(w, req.StartDate)
+	sD, err := parseOptionalDate(w, req.StartDate)
 	if err != nil {
 		return
 	}
 
-	eD, err := parseOptionalDate(w, req.EndDate)
-	if err != nil {
-		return
+	// Обработка EndDate с тремя состояниями
+	var endDate *time.Time
+	setEndDateNull := false // Флаг нужно ли занулять
+
+	// Поле было в запросе
+	if req.EndDate != nil {
+		// Занулить
+		if req.EndDate.Null {
+			endDate = nil         // означает занулить
+			setEndDateNull = true // Флаг что нужно занулить
+		} else if req.EndDate.Value != nil {
+			// есть значение
+			parsedTime, err := parseDate(w, *req.EndDate.Value)
+			if err != nil {
+				return
+			}
+			endDate = &parsedTime
+		}
+
+	} else {
+		// если не было остальных полей
+		if req.Price == nil && sD == nil {
+			utils.WriteJSON(w, http.StatusBadRequest, ErrorResponse{
+				Error: "no fields to update",
+				Code:  "UNNECESSARY_UPDATE",
+			})
+		}
 	}
 
 	record, err := h.container.UpdateSubscriptionHandler.Handle(r.Context(), commands.UpdateSubscriptionCommand{
-		ID:        uid,
-		Price:     req.Price,
-		StartDate: sD,
-		EndDate:   eD,
+		ID:             uid,
+		Price:          req.Price,
+		StartDate:      sD,
+		EndDate:        endDate,
+		SetEndDateNull: setEndDateNull,
 	})
 	if err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
+		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
 	}
@@ -150,12 +190,20 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [delete]
 func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "DeleteSubscription",
+		Ctx:  r.Context(),
+	})
+
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
 		return
 	}
 
 	if err := h.container.DeleteSubscriptionHandler.Handle(r.Context(), commands.DeleteSubscriptionCommand{ID: uid}); err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
+		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
 	}
@@ -177,6 +225,12 @@ func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions [get]
 func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "ListSubscriptions",
+		Ctx:  r.Context(),
+	})
+
 	var req SubscriptionQueryRequest
 	if !utils.ParseQuery(w, r, &req) {
 		return
@@ -184,35 +238,22 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 
 	//собираем квери
 	// Парсим optional dates
-	var period *domain.Period
-	if req.From != nil || req.To != nil {
-		sD, err := parseOptionalDate(w, req.From)
-		if err != nil {
-			return
-		}
+	sfD, err := parseOptionalDate(w, req.StartFrom)
+	if err != nil {
+		return
+	}
+	stD, err := parseOptionalDate(w, req.StartTo)
+	if err != nil {
+		return
+	}
 
-		eD, err := parseOptionalDate(w, req.To)
-		if err != nil {
-			return
-		}
-
-		// Создаем период только если у нас есть хотя бы одна дата
-		if sD != nil || eD != nil {
-			var start, end time.Time
-			if sD != nil {
-				start = *sD
-			}
-			if eD != nil {
-				end = *eD
-			}
-
-			p, err := domain.NewPeriod(start, end)
-			if err != nil {
-				h.writeAppError(w, err)
-				return
-			}
-			period = p
-		}
+	efD, err := parseOptionalDate(w, req.EndFrom)
+	if err != nil {
+		return
+	}
+	etD, err := parseOptionalDate(w, req.EndTo)
+	if err != nil {
+		return
 	}
 
 	// собираем пагинацию
@@ -244,11 +285,19 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 
 	// исполняем квери
 	records, err := h.container.ListSubscriptionsHandler.Handle(r.Context(), queries.ListSubscriptionsQuery{
-		Query:      domain.NewSubscriptionQuery(req.UserID, req.ServiceName, period),
+		UserID:      req.UserID,
+		ServiceName: req.ServiceName,
+		StartFrom:   sfD,
+		StartTo:     stD,
+		EndFrom:     efD,
+		EndTo:       etD,
+
 		Pagination: pagination,
 		Sorting:    sorting,
 	})
 	if err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
+		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
 	}
@@ -276,32 +325,47 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/total [get]
 func (h *SubsHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "SubsHandler",
+		Func: "GetTotalCost",
+		Ctx:  r.Context(),
+	})
+
 	var req TotalCostRequest
 	if !utils.ParseQuery(w, r, &req) {
 		return
 	}
 
-	//собираем квери
-	sD, err := parseDate(w, req.From)
+	// Парсим optional dates
+	sfD, err := parseOptionalDate(w, req.StartFrom)
+	if err != nil {
+		return
+	}
+	stD, err := parseOptionalDate(w, req.StartTo)
 	if err != nil {
 		return
 	}
 
-	eD, err := parseDate(w, req.To)
+	efD, err := parseOptionalDate(w, req.EndFrom)
 	if err != nil {
 		return
 	}
-
-	period, err := domain.NewPeriod(sD, eD)
+	etD, err := parseOptionalDate(w, req.EndTo)
 	if err != nil {
-		h.writeAppError(w, err)
 		return
 	}
 
 	result, err := h.container.TotalCostHandler.Handle(r.Context(), queries.TotalCostQuery{
-		Query: domain.NewSubscriptionQuery(&req.UserID, req.ServiceName, period),
+		UserID:      req.UserID,
+		ServiceName: req.ServiceName,
+		StartFrom:   sfD,
+		StartTo:     stD,
+		EndFrom:     efD,
+		EndTo:       etD,
 	})
 	if err != nil {
+		log.Errorf("ошибка выполнения: %v", err)
+		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
 	}

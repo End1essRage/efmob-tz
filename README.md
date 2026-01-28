@@ -19,14 +19,6 @@ e2e - перезапустит сервис и запустит hurl тесты(
 ci:test-integration - запуск интеграционных тестов с поднятием сервисов через testcontainers
 
 
-## Environment:
-dev:
-	loglevel: debug
-	db: inmemory
-test:
-	loglevel: debug
-	db: postgres
-
 ## bl annotations
 1) Обновлять в данных подписки можно только цену и период(начало и конец)
 

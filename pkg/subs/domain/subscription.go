@@ -146,21 +146,20 @@ func (s *Subscription) ChangePrice(price int) error {
 	return nil
 }
 
-func (s *Subscription) ChangePeriod(start time.Time, end *time.Time) error {
-	start = normalizeMonth(start)
-
-	if end != nil {
-		e := normalizeMonth(*end)
-		if !e.After(start) {
-			return ErrInvalidDates
-		}
-		end = &e
-	}
-
-	s.startDate = start
-	s.endDate = end
+func (s *Subscription) ChangeStartDate(start time.Time) {
+	s.startDate = normalizeMonth(start)
 	s.updatedAt = time.Now()
-	return nil
+}
+
+func (s *Subscription) ChangeEndDate(end time.Time) {
+	e := normalizeMonth(end)
+	s.endDate = &e
+	s.updatedAt = time.Now()
+}
+
+func (s *Subscription) NilEndDate() {
+	s.endDate = nil
+	s.updatedAt = time.Now()
 }
 
 func normalizeMonth(t time.Time) time.Time {

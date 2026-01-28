@@ -28,21 +28,25 @@ func (p Period) To() time.Time   { return p.to }
 type SubscriptionQuery struct {
 	userID      *uuid.UUID
 	serviceName *string
-	period      *Period
+	startPeriod *Period
+	endPeriod   *Period
 }
 
 func NewSubscriptionQuery(
 	userID *uuid.UUID,
 	serviceName *string,
-	period *Period,
+	startPeriod *Period,
+	endPeriod *Period,
 ) SubscriptionQuery {
 	return SubscriptionQuery{
 		userID:      userID,
 		serviceName: serviceName,
-		period:      period,
+		startPeriod: startPeriod,
+		endPeriod:   endPeriod,
 	}
 }
 
 func (q SubscriptionQuery) UserID() *uuid.UUID   { return q.userID }
 func (q SubscriptionQuery) ServiceName() *string { return q.serviceName }
-func (q SubscriptionQuery) Period() *Period      { return q.period }
+func (q SubscriptionQuery) StartPeriod() *Period { return q.startPeriod }
+func (q SubscriptionQuery) EndPeriod() *Period   { return q.endPeriod }

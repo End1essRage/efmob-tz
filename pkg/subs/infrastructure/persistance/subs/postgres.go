@@ -119,8 +119,13 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 	if q.ServiceName() != nil {
 		db = db.Where("service_name = ?", *q.ServiceName())
 	}
-	if q.Period() != nil {
-		db = db.Where("start_date <= ? AND (end_date IS NULL OR end_date >= ?)", q.Period().To(), q.Period().From())
+
+	if q.StartPeriod() != nil {
+		db = db.Where("start_date >= ? AND start_date <= ?", q.StartPeriod().From(), q.StartPeriod().To())
+	}
+
+	if q.EndPeriod() != nil {
+		db = db.Where("end_date >= ? AND end_date <= ?", q.EndPeriod().From(), q.EndPeriod().To())
 	}
 
 	if sorting != nil {
@@ -153,8 +158,13 @@ func (r *GormSubscriptionRepo) CalculateTotal(ctx context.Context, q domain.Subs
 	if q.ServiceName() != nil {
 		db = db.Where("service_name = ?", *q.ServiceName())
 	}
-	if q.Period() != nil {
-		db = db.Where("start_date <= ? AND (end_date IS NULL OR end_date >= ?)", q.Period().To(), q.Period().From())
+
+	if q.StartPeriod() != nil {
+		db = db.Where("start_date >= ? AND start_date <= ?", q.StartPeriod().From(), q.StartPeriod().To())
+	}
+
+	if q.EndPeriod() != nil {
+		db = db.Where("end_date >= ? AND end_date <= ?", q.EndPeriod().From(), q.EndPeriod().To())
 	}
 
 	var count int64

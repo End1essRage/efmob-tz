@@ -58,17 +58,6 @@ func TestSubscription_ChangePrice_Invalid(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidPrice)
 }
 
-func TestSubscription_ChangePeriod_Invalid(t *testing.T) {
-	sub := mustSubscription(t)
-
-	start := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
-
-	err := sub.ChangePeriod(start, &end)
-
-	require.ErrorIs(t, err, ErrInvalidDates)
-}
-
 func TestSubscription_IsActive(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC)

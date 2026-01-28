@@ -2,14 +2,33 @@ package application
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 )
 
-var (
-	ErrPasswordReuse = errors.New("password_reuse")
-)
+type ErrorValidationCommand struct {
+	Msg string
+}
+
+func NewErrorValidationCommand(msg string) *ErrorValidationCommand {
+	return &ErrorValidationCommand{Msg: msg}
+}
+func (e ErrorValidationCommand) Error() string {
+	return fmt.Sprintf("недоступное действие: %s", e.Msg)
+}
+
+type ErrorValidationQuery struct {
+	Msg string
+}
+
+func NewErrorValidationQuery(msg string) *ErrorValidationQuery {
+	return &ErrorValidationQuery{Msg: msg}
+}
+func (e ErrorValidationQuery) Error() string {
+	return fmt.Sprintf("ошибка в qury: %s", e.Msg)
+}
 
 type AppError struct {
 	Err        error
@@ -18,7 +37,25 @@ type AppError struct {
 }
 
 // маппер ошибок
-func MapDomainError(err error) *AppError {
+func MapError(err error) *AppError {
+	var valCmdErr *ErrorValidationCommand
+	if errors.As(err, &valCmdErr) {
+		return &AppError{
+			Err:        err,
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "INVALID_COMMAND",
+		}
+	}
+
+	var valQueryErr *ErrorValidationQuery
+	if errors.As(err, &valQueryErr) {
+		return &AppError{
+			Err:        err,
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "INVALID_QUERY",
+		}
+	}
+
 	switch {
 	// Subscription domain errors
 	//400
@@ -37,5 +74,4 @@ func MapDomainError(err error) *AppError {
 	default:
 		return &AppError{Err: err, HTTPStatus: http.StatusInternalServerError, Code: "INTERNAL_ERROR"}
 	}
-
 }

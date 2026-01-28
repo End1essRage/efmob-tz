@@ -39,17 +39,19 @@ type SubscriptionCreateRequest struct {
 // swagger:model SubscriptionUpdateRequest
 type SubscriptionUpdateRequest struct {
 	// Subscription price in rubles
-	// required: true
-	Price int `json:"price"`
+	// required: false
+	// nullable: true
+	Price *int `json:"price,omitempty"`
 
 	// Subscription start date in MM-YYYY format
-	// required: true
-	StartDate string `json:"start_date"`
+	// required: false
+	// nullable: true
+	StartDate *string `json:"start_date,omitempty"`
 
 	// Subscription end date in MM-YYYY format, optional
 	// required: false
 	// nullable: true
-	EndDate *string `json:"end_date,omitempty"`
+	EndDate *EndDateUpdate `json:"end_date,omitempty"` // Указатель для отслеживания присутствия
 }
 
 // SubscriptionQueryRequest
@@ -61,11 +63,17 @@ type SubscriptionQueryRequest struct {
 	// Filter by service name, optional
 	ServiceName *string `schema:"service_name,omitempty"`
 
-	// Filter by start period (MM-YYYY), optional
-	From *string `schema:"from,omitempty"`
+	// Filter by start_date period from (MM-YYYY), optional
+	StartFrom *string `schema:"start_from,omitempty"`
 
-	// Filter by end period (MM-YYYY), optional
-	To *string `schema:"to,omitempty"`
+	// Filter by start_date period to (MM-YYYY), optional
+	StartTo *string `schema:"start_to,omitempty"`
+
+	// Filter by end_date period from (MM-YYYY), optional
+	EndFrom *string `schema:"end_from,omitempty"`
+
+	// Filter by end_date period to (MM-YYYY), optional
+	EndTo *string `schema:"end_to,omitempty"`
 
 	// Page number for pagination, optional
 	Page *int `schema:"page,omitempty"`
@@ -84,19 +92,22 @@ type SubscriptionQueryRequest struct {
 // swagger:model TotalCostRequest
 type TotalCostRequest struct {
 	// User ID (UUID)
-	// required: true
-	UserID uuid.UUID `schema:"user_id"`
+	UserID *uuid.UUID `schema:"user_id"`
 
 	// Service name filter, optional
 	ServiceName *string `schema:"service_name"`
 
-	// Period start in MM-YYYY format
-	// required: true
-	From string `schema:"from"`
+	// Filter by start_date period from (MM-YYYY), optional
+	StartFrom *string `schema:"start_from,omitempty"`
 
-	// Period end in MM-YYYY format
-	// required: true
-	To string `schema:"to"`
+	// Filter by start_date period to (MM-YYYY), optional
+	StartTo *string `schema:"start_to,omitempty"`
+
+	// Filter by end_date period from (MM-YYYY), optional
+	EndFrom *string `schema:"end_from,omitempty"`
+
+	// Filter by end_date period to (MM-YYYY), optional
+	EndTo *string `schema:"end_to,omitempty"`
 }
 
 // Subscription

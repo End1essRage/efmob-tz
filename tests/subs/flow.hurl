@@ -15,7 +15,7 @@ jsonpath "$.user_id" == "12601fee-2bf1-4721-ae6f-7636e79a0cba"
 jsonpath "$.service_name" == "Yandex Plus"
 jsonpath "$.price" == 400
 [Captures]
-sub_id: jsonpath "$.id"  # <-- присваивание переменной здесь
+sub_id: jsonpath "$.id"
 
 
 # Обновляем подписку

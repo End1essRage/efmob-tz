@@ -13,15 +13,15 @@ func WriteJSON(w http.ResponseWriter, status int, payload interface{}) {
 	_ = json.NewEncoder(w).Encode(payload) // Игнорируем ошибку энкодинга, не критично
 }
 
-func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
+func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "invalid request format",
 			"code":  "VALIDATION_ERROR",
 		})
-		return false
+		return err
 	}
-	return true
+	return nil
 }
 
 // ParseQuery парсит query-параметры из запроса r в структуру dst.

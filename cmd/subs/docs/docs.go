@@ -317,6 +317,23 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "http.EndDateUpdate": {
+            "type": "object",
+            "properties": {
+                "null": {
+                    "description": "Если true - нужно установить в null",
+                    "type": "boolean"
+                },
+                "present": {
+                    "description": "Было ли поле передано в запросе",
+                    "type": "boolean"
+                },
+                "value": {
+                    "description": "Значение если не null",
+                    "type": "string"
+                }
+            }
+        },
         "http.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -389,14 +406,18 @@ const docTemplate = `{
             "properties": {
                 "end_date": {
                     "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/http.EndDateUpdate"
+                        }
+                    ]
                 },
                 "price": {
-                    "description": "Subscription price in rubles\nrequired: true",
+                    "description": "Subscription price in rubles\nrequired: false\nnullable: true",
                     "type": "integer"
                 },
                 "start_date": {
-                    "description": "Subscription start date in MM-YYYY format\nrequired: true",
+                    "description": "Subscription start date in MM-YYYY format\nrequired: false\nnullable: true",
                     "type": "string"
                 }
             }

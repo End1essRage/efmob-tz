@@ -126,7 +126,7 @@ func TestSubscriptionRepo_FindAndCalculateTotal(t *testing.T) {
 	}
 
 	// --- Find с фильтром ---
-	query := domain.NewSubscriptionQuery(&userID, nil, nil)
+	query := domain.NewSubscriptionQuery(&userID, nil, nil, nil)
 	pagination := &p.Pagination{Limit: 2, Offset: 0}
 	sorting := &p.Sorting{OrderBy: "price", Direction: p.Descending}
 

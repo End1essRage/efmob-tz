@@ -89,38 +89,32 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	var statsRepo domain.SubscriptionStatsRepository
 	var cleanupDB func()
 
-	if common.ENV(cfg.Env) == common.ENV_DEV {
-		memRepo := subs_repo.NewInMemorySubscriptionRepo()
-		repo = memRepo
-		statsRepo = memRepo
-	} else {
-		dsn := cfg.PostgresDSN
-		gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
-		})
+	dsn := cfg.PostgresDSN
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
+	})
+	if err != nil {
+		log.Fatalf("failed to connect to postgres: %v", err)
+	}
+
+	// только в ТЕСТ
+	if common.ENV(cfg.Env) == common.ENV_TEST {
+		// Авто-миграция таблицы subscriptions
+		err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
 		if err != nil {
-			log.Fatalf("failed to connect to postgres: %v", err)
+			log.Fatalf("failed to auto-migrate subscriptions: %v", err)
 		}
+	}
 
-		// только в ТЕСТ
-		if common.ENV(cfg.Env) == common.ENV_TEST {
-			// Авто-миграция таблицы subscriptions
-			err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
-			if err != nil {
-				log.Fatalf("failed to auto-migrate subscriptions: %v", err)
-			}
-		}
+	pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
+	repo = pgRepo
+	statsRepo = pgRepo
 
-		pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
-		repo = pgRepo
-		statsRepo = pgRepo
-
-		// Если нужно закрывать соединение при shutdown
-		sqlDB, err := gormDB.DB()
-		if err == nil {
-			cleanupDB = func() {
-				_ = sqlDB.Close()
-			}
+	// Если нужно закрывать соединение при shutdown
+	sqlDB, err := gormDB.DB()
+	if err == nil {
+		cleanupDB = func() {
+			_ = sqlDB.Close()
 		}
 	}
 
