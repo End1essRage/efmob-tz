@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
@@ -114,7 +115,7 @@ func (r *GormSubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination *p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	db = applySubscriptionQuery(db, q)
+	db = applySubscriptionQuery(ctx, db, q)
 
 	if sorting != nil {
 		db = db.Order(sorting.OrderBy + " " + string(sorting.Direction))
@@ -140,7 +141,7 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 func (r *GormSubscriptionRepo) CalculateTotalCost(ctx context.Context, q domain.SubscriptionQuery) (int, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	db = applySubscriptionQuery(db, q)
+	db = applySubscriptionQuery(ctx, db, q)
 
 	var total int64
 	err := db.
@@ -173,7 +174,13 @@ func cryptoRandInt(max int) (int, error) {
 	return int(val % uint64(max)), nil
 }
 
-func applySubscriptionQuery(db *gorm.DB, q domain.SubscriptionQuery) *gorm.DB {
+func applySubscriptionQuery(ctx context.Context, db *gorm.DB, q domain.SubscriptionQuery) *gorm.DB {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "GormSubscriptionRepo",
+		Func: "applySubscriptionQuery",
+		Ctx:  ctx,
+	})
+
 	if q.UserID() != nil {
 		db = db.Where("user_id = ?", q.UserID())
 	}
@@ -240,7 +247,10 @@ func applySubscriptionQuery(db *gorm.DB, q domain.SubscriptionQuery) *gorm.DB {
 	}
 
 	if len(conds) > 0 {
-		db = db.Where(strings.Join(conds, " AND "), args...)
+		q := strings.Join(conds, " AND ")
+		db = db.Where(q, args...)
+
+		log.Debugf("query is: %s", q)
 	}
 
 	return db
