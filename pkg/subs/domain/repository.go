@@ -15,5 +15,5 @@ type SubscriptionRepository interface {
 	Find(ctx context.Context, q SubscriptionQuery, p *p.Pagination, s *p.Sorting) ([]*Subscription, error)
 }
 type SubscriptionStatsRepository interface {
-	CalculateTotal(ctx context.Context, q SubscriptionQuery) (int, error)
+	CalculateTotalCost(ctx context.Context, q SubscriptionQuery) (int, error)
 }

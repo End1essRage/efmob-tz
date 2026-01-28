@@ -5,6 +5,7 @@ import (
 	"time"
 
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
+	subsMetrics "github.com/end1essrage/efmob-tz/pkg/subs/metrics"
 	"github.com/google/uuid"
 )
 
@@ -42,5 +43,8 @@ func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscr
 		// ошибка на стороне репозитория
 		return nil, err
 	}
+
+	subsMetrics.SubscriptionsCreatedTotal.Inc()
+
 	return sub, nil
 }

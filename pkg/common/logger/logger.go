@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"context"
 	"sync"
 
+	"github.com/go-chi/chi/v5/middleware"
 	l "github.com/sirupsen/logrus"
 )
 
@@ -14,9 +16,17 @@ var (
 type Wrapper struct {
 	logger *l.Logger
 }
+type LogOptions struct {
+	Pkg  string
+	Func string
+	Ctx  context.Context
+}
 
 // получить инстанс логгера
 func Logger() *Wrapper {
+	if instance == nil {
+		return New("-", true, true)
+	}
 	return instance
 }
 
@@ -31,8 +41,23 @@ func New(serviceName string, jsonFormat bool, debug bool) *Wrapper {
 }
 
 // вывод сообщения
+// Универсальный метод для логирования
+func (log *Wrapper) WithFields(opts LogOptions) *l.Entry {
+	entry := log.logger.WithField("@caller", opts.Pkg).WithField("@func", opts.Func)
+
+	if opts.Ctx != nil {
+		reqID := middleware.GetReqID(opts.Ctx)
+		if reqID != "" {
+			entry = entry.WithField("request_id", reqID)
+		}
+	}
+
+	return entry
+}
+
+// Для обратной совместимости
 func (log *Wrapper) Log(pkg, fn string) *l.Entry {
-	return log.logger.WithField("@caller", pkg).WithField("@func", fn)
+	return log.WithFields(LogOptions{Pkg: pkg, Func: fn})
 }
 
 // вывод сообщения без параметров -> Log(pkg, fn string)

@@ -6,8 +6,10 @@ import (
 
 	m "github.com/end1essrage/efmob-tz/pkg/common/interfaces/http/middleware"
 	"github.com/end1essrage/efmob-tz/pkg/common/logger"
+	"github.com/end1essrage/efmob-tz/pkg/common/metrics"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
@@ -48,20 +50,15 @@ func CreateRouter() *chi.Mux {
 	r := chi.NewRouter()
 
 	// порядок важен
-	// 1. Recovery middleware (обработка паник)
 	r.Use(middleware.Recoverer)
-
-	// 2. Request ID middleware
 	r.Use(middleware.RequestID)
 
-	// 3. Rate limiter (например, 100 запросов в минуту с burst 10)
-	rateLimiter := m.NewRateLimiter(time.Minute, 100, 10)
+	// 100 - в минуту 30 - берст
+	rateLimiter := m.NewRateLimiter(time.Minute, 100, 30)
 	r.Use(m.RateLimitMiddleware(rateLimiter))
 
-	// 4. Logging middleware
+	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(MiddlewareLogger)
-
-	// 5. Timeout middleware (таймаут 30 секунд на запрос)
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	// swagger docs
@@ -76,10 +73,7 @@ func CreateRouter() *chi.Mux {
 	})
 
 	// Metrics
-	r.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
-	})
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	return r
 }

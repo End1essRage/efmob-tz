@@ -31,7 +31,7 @@ services:
       - "--providers.docker.network=app-network"
       - "--entrypoints.web.address=:80"
       # - "--entrypoints.websecure.address=:443"
-      - "--log.level=DEBUG" # Включаем подробные логи
+      - "--log.level=INFO" # Выключаем подробные логи
       - "--accesslog=true"
     ports:
       - "80:80"

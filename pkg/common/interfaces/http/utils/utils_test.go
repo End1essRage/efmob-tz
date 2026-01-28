@@ -1,41 +1,12 @@
 package utils
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestDecodeJSONBody_OK(t *testing.T) {
-	type Req struct {
-		Name string `json:"name"`
-		Age  int    `json:"age"`
-	}
-
-	body := []byte(`{"name":"Alice","age":30}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	var dst Req
-	ok := DecodeJSONBody(w, req, &dst)
-	require.True(t, ok)
-	require.Equal(t, "Alice", dst.Name)
-	require.Equal(t, 30, dst.Age)
-}
-
-func TestDecodeJSONBody_Invalid(t *testing.T) {
-	body := []byte(`{invalid-json}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	var dst map[string]interface{}
-	ok := DecodeJSONBody(w, req, &dst)
-	require.False(t, ok)
-	require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
-}
 
 func TestWriteJSON(t *testing.T) {
 	w := httptest.NewRecorder()

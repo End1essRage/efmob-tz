@@ -9,10 +9,12 @@ import (
 
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
+	common_metrics "github.com/end1essrage/efmob-tz/pkg/common/metrics"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
 	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	subs_repo "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 	subs_http "github.com/end1essrage/efmob-tz/pkg/subs/interfaces/http"
+	subs_metrics "github.com/end1essrage/efmob-tz/pkg/subs/metrics"
 	"github.com/go-chi/chi/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -38,6 +40,10 @@ func main() {
 	logger := l.New(cfg.ServiceName, true, common.ENV(cfg.Env) != common.ENV_PROD).Log("main", "main")
 
 	logger.Infof("запуск %s сервиса", cfg.ServiceName)
+
+	// регистрация метрик
+	common_metrics.Register()
+	subs_metrics.Register()
 
 	//корневой контекст
 	ctx := common.Context()
@@ -83,38 +89,32 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	var statsRepo domain.SubscriptionStatsRepository
 	var cleanupDB func()
 
-	if common.ENV(cfg.Env) == common.ENV_DEV {
-		memRepo := subs_repo.NewInMemorySubscriptionRepo()
-		repo = memRepo
-		statsRepo = memRepo
-	} else {
-		dsn := cfg.PostgresDSN
-		gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
-		})
+	dsn := cfg.PostgresDSN
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
+	})
+	if err != nil {
+		log.Fatalf("failed to connect to postgres: %v", err)
+	}
+
+	// только в ТЕСТ
+	if common.ENV(cfg.Env) == common.ENV_TEST {
+		// Авто-миграция таблицы subscriptions
+		err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
 		if err != nil {
-			log.Fatalf("failed to connect to postgres: %v", err)
+			log.Fatalf("failed to auto-migrate subscriptions: %v", err)
 		}
+	}
 
-		// только в ТЕСТ
-		if common.ENV(cfg.Env) == common.ENV_TEST {
-			// Авто-миграция таблицы subscriptions
-			err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
-			if err != nil {
-				log.Fatalf("failed to auto-migrate subscriptions: %v", err)
-			}
-		}
+	pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
+	repo = pgRepo
+	statsRepo = pgRepo
 
-		pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
-		repo = pgRepo
-		statsRepo = pgRepo
-
-		// Если нужно закрывать соединение при shutdown
-		sqlDB, err := gormDB.DB()
-		if err == nil {
-			cleanupDB = func() {
-				_ = sqlDB.Close()
-			}
+	// Если нужно закрывать соединение при shutdown
+	sqlDB, err := gormDB.DB()
+	if err == nil {
+		cleanupDB = func() {
+			_ = sqlDB.Close()
 		}
 	}
 

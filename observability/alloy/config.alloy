@@ -8,16 +8,9 @@ logging {
 // ======================
 
 // 1. Сбор метрик с приложений
-prometheus.scrape "auth_service" {
+prometheus.scrape "subs_service" {
   targets = [
-    { "__address__" = "auth:8080", "service" = "auth" },
-  ]
-  forward_to = [prometheus.remote_write.default.receiver]
-}
-
-prometheus.scrape "user_service" {
-  targets = [
-    { "__address__" = "user:8080", "service" = "user" },
+    { "__address__" = "subs:8080", "service" = "subs" },
   ]
   forward_to = [prometheus.remote_write.default.receiver]
 }
@@ -66,11 +59,12 @@ discovery.relabel "logs_integrations_docker" {
   // keep Alloy container as well
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "alloy|auth|user"
+    regex         = "alloy|subs"
     action        = "keep"
   }
 
   // метки для логов
+  /*
   rule {
     source_labels = ["__meta_docker_container_name"]
     target_label  = "service_name"
@@ -83,6 +77,7 @@ discovery.relabel "logs_integrations_docker" {
     source_labels = ["__meta_docker_container_log_stream"]
     target_label  = "stream"
   }
+  */
 
   rule {
     source_labels = ["referer"]

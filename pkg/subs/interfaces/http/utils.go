@@ -13,7 +13,7 @@ import (
 )
 
 func (h *SubsHandler) writeAppError(w http.ResponseWriter, err error) {
-	appErr := app.MapDomainError(err)
+	appErr := app.MapError(err)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(appErr.HTTPStatus)
 
@@ -28,6 +28,7 @@ func (h *SubsHandler) writeAppError(w http.ResponseWriter, err error) {
 		Error: msg,
 		Code:  appErr.Code,
 	}); err != nil {
+		// encoding error
 		logger.Logger().Log("AuthHandler", "writeAppError").Error(err)
 	}
 }

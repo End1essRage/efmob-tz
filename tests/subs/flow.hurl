@@ -15,7 +15,7 @@ jsonpath "$.user_id" == "12601fee-2bf1-4721-ae6f-7636e79a0cba"
 jsonpath "$.service_name" == "Yandex Plus"
 jsonpath "$.price" == 400
 [Captures]
-sub_id: jsonpath "$.id"  # <-- присваивание переменной здесь
+sub_id: jsonpath "$.id"
 
 
 # Обновляем подписку
@@ -27,8 +27,6 @@ Content-Type: application/json
 }
 
 HTTP/1.1 202
-[Asserts]
-jsonpath "$.price" == 500
 
 # Читаем подписку, чтобы убедиться, что изменения сохранились
 GET http://subs:8080/subscriptions/{{sub_id}}

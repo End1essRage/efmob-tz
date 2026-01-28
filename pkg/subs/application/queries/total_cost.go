@@ -2,12 +2,21 @@ package queries
 
 import (
 	"context"
+	"time"
 
+	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
+	"github.com/google/uuid"
 )
 
 type TotalCostQuery struct {
-	Query domain.SubscriptionQuery
+	UserID      *uuid.UUID
+	ServiceName *string
+	StartFrom   *time.Time
+	StartTo     *time.Time
+	EndFrom     *time.Time
+	EndTo       *time.Time
+	WithNilEnd  *bool
 }
 
 type TotalCostHandler struct {
@@ -19,5 +28,12 @@ func NewTotalCostHandler(repo domain.SubscriptionStatsRepository) *TotalCostHand
 }
 
 func (h *TotalCostHandler) Handle(ctx context.Context, q TotalCostQuery) (int, error) {
-	return h.repo.CalculateTotal(ctx, q.Query)
+	startPeriod, endPeriod, err := application.Periods(q.StartFrom, q.StartTo, q.EndFrom, q.EndTo)
+	if err != nil {
+		return 0, err
+	}
+
+	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod, q.WithNilEnd)
+
+	return h.repo.CalculateTotalCost(ctx, query)
 }

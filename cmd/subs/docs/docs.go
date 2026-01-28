@@ -40,14 +40,50 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Start period (MM-YYYY)",
-                        "name": "from",
+                        "description": "Start period from (MM-YYYY)",
+                        "name": "start_from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End period (MM-YYYY)",
-                        "name": "to",
+                        "description": "Start period to  (MM-YYYY)",
+                        "name": "start_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End period from (MM-YYYY)",
+                        "name": "end_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End period to  (MM-YYYY)",
+                        "name": "end_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page num can use 0 or 1 for first",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page Size / Limit",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sorting field name",
+                        "name": "order_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sorting direction use 'asc'(default) or 'desc'",
+                        "name": "direction",
                         "in": "query"
                     }
                 ],
@@ -146,17 +182,27 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Period start (MM-YYYY)",
-                        "name": "from",
-                        "in": "query",
-                        "required": true
+                        "description": "Start period from (MM-YYYY)",
+                        "name": "start_from",
+                        "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Period end (MM-YYYY)",
-                        "name": "to",
-                        "in": "query",
-                        "required": true
+                        "description": "Start period to  (MM-YYYY)",
+                        "name": "start_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End period from (MM-YYYY)",
+                        "name": "end_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End period to  (MM-YYYY)",
+                        "name": "end_to",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -289,10 +335,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/http.Subscription"
-                        }
+                        "description": "Accepted"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -330,11 +373,14 @@ const docTemplate = `{
                 }
             }
         },
+        "http.NullableStringUpdate": {
+            "type": "object"
+        },
         "http.Subscription": {
             "type": "object",
             "properties": {
                 "end_date": {
-                    "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true\nexample: 07-2026",
+                    "description": "Subscription end date in MM-YYYY format, optional\nexample: 07-2026",
                     "type": "string"
                 },
                 "id": {
@@ -389,14 +435,18 @@ const docTemplate = `{
             "properties": {
                 "end_date": {
                     "description": "Subscription end date in MM-YYYY format, optional\nrequired: false\nnullable: true",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/http.NullableStringUpdate"
+                        }
+                    ]
                 },
                 "price": {
-                    "description": "Subscription price in rubles\nrequired: true",
+                    "description": "Subscription price in rubles\nrequired: false\nnullable: true",
                     "type": "integer"
                 },
                 "start_date": {
-                    "description": "Subscription start date in MM-YYYY format\nrequired: true",
+                    "description": "Subscription start date in MM-YYYY format\nrequired: false\nnullable: true",
                     "type": "string"
                 }
             }
