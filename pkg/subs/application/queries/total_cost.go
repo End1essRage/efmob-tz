@@ -16,6 +16,7 @@ type TotalCostQuery struct {
 	StartTo     *time.Time
 	EndFrom     *time.Time
 	EndTo       *time.Time
+	WithNilEnd  *bool
 }
 
 type TotalCostHandler struct {
@@ -27,20 +28,12 @@ func NewTotalCostHandler(repo domain.SubscriptionStatsRepository) *TotalCostHand
 }
 
 func (h *TotalCostHandler) Handle(ctx context.Context, q TotalCostQuery) (int, error) {
-	// проверяем что в периодах заполнены обе границы
-	if (q.StartFrom != nil && q.StartTo == nil) || (q.StartFrom == nil && q.StartTo != nil) {
-		return 0, application.NewErrorValidationQuery("в фильтрах по периоду должны быть заполнены обе границы")
-	}
-	if (q.EndFrom != nil && q.EndTo == nil) || (q.EndFrom == nil && q.EndTo != nil) {
-		return 0, application.NewErrorValidationQuery("в фильтрах по периоду должны быть заполнены обе границы")
-	}
-
 	startPeriod, endPeriod, err := application.Periods(q.StartFrom, q.StartTo, q.EndFrom, q.EndTo)
 	if err != nil {
 		return 0, err
 	}
 
-	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod)
+	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod, q.WithNilEnd)
 
-	return h.repo.CalculateTotal(ctx, query)
+	return h.repo.CalculateTotalCost(ctx, query)
 }

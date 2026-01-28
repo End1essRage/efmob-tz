@@ -17,6 +17,7 @@ type ListSubscriptionsQuery struct {
 	StartTo     *time.Time
 	EndFrom     *time.Time
 	EndTo       *time.Time
+	WithNilEnd  *bool
 
 	Pagination *p.Pagination
 	Sorting    *p.Sorting
@@ -31,20 +32,12 @@ func NewListSubscriptionsHandler(repo domain.SubscriptionRepository) *ListSubscr
 }
 
 func (h *ListSubscriptionsHandler) Handle(ctx context.Context, q ListSubscriptionsQuery) ([]*domain.Subscription, error) {
-	// проверяем что в периодах заполнены обе границы
-	if (q.StartFrom != nil && q.StartTo == nil) || (q.StartFrom == nil && q.StartTo != nil) {
-		return nil, application.NewErrorValidationQuery("в фильтрах по периоду должны быть заполнены обе границы")
-	}
-	if (q.EndFrom != nil && q.EndTo == nil) || (q.EndFrom == nil && q.EndTo != nil) {
-		return nil, application.NewErrorValidationQuery("в фильтрах по периоду должны быть заполнены обе границы")
-	}
-
 	startPeriod, endPeriod, err := application.Periods(q.StartFrom, q.StartTo, q.EndFrom, q.EndTo)
 	if err != nil {
 		return nil, err
 	}
 
-	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod)
+	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod, q.WithNilEnd)
 
 	return h.repo.Find(ctx, query, q.Pagination, q.Sorting)
 }

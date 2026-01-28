@@ -75,6 +75,9 @@ type SubscriptionQueryRequest struct {
 	// Filter by end_date period to (MM-YYYY), optional
 	EndTo *string `schema:"end_to,omitempty"`
 
+	// Filter by end_date Include with EMPTY end_date
+	NilEnd *bool `schema:"nil_end,omitempty"`
+
 	// Page number for pagination, optional
 	Page *int `schema:"page,omitempty"`
 
@@ -108,6 +111,9 @@ type TotalCostRequest struct {
 
 	// Filter by end_date period to (MM-YYYY), optional
 	EndTo *string `schema:"end_to,omitempty"`
+
+	// Filter by end_date Include with EMPTY end_date
+	NilEnd *bool `schema:"nil_end,omitempty"`
 }
 
 // Subscription

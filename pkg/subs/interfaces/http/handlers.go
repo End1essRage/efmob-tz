@@ -216,8 +216,14 @@ func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request)
 // @Produce json
 // @Param user_id query string false "User ID (UUID)"
 // @Param service_name query string false "Service name"
-// @Param from query string false "Start period (MM-YYYY)"
-// @Param to query string false "End period (MM-YYYY)"
+// @Param start_from query string false "Start period from (MM-YYYY)"
+// @Param start_to query string false "Start period to  (MM-YYYY)"
+// @Param end_from query string false "End period from (MM-YYYY)"
+// @Param end_to query string false "End period to  (MM-YYYY)"
+// @Param page query int false "Page num can use 0 or 1 for first"
+// @Param page_size query int false "Page Size / Limit"
+// @Param order_by query string false "Sorting field name"
+// @Param direction query string false "Sorting direction use 'asc'(default) or 'desc'"
 // @Success 200 {array} Subscription
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -289,6 +295,7 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 		StartTo:     stD,
 		EndFrom:     efD,
 		EndTo:       etD,
+		WithNilEnd:  req.NilEnd,
 
 		Pagination: pagination,
 		Sorting:    sorting,
@@ -316,8 +323,10 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Param user_id query string true "User ID (UUID)"
 // @Param service_name query string false "Service name"
-// @Param from query string true "Period start (MM-YYYY)"
-// @Param to query string true "Period end (MM-YYYY)"
+// @Param start_from query string false "Start period from (MM-YYYY)"
+// @Param start_to query string false "Start period to  (MM-YYYY)"
+// @Param end_from query string false "End period from (MM-YYYY)"
+// @Param end_to query string false "End period to  (MM-YYYY)"
 // @Success 200 {object} TotalCostResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -360,6 +369,7 @@ func (h *SubsHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
 		StartTo:     stD,
 		EndFrom:     efD,
 		EndTo:       etD,
+		WithNilEnd:  req.NilEnd,
 	})
 	if err != nil {
 		log.Errorf("ошибка выполнения: %v", err)

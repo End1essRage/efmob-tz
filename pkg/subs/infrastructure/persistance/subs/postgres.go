@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"strings"
 	"time"
 
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
@@ -113,20 +114,7 @@ func (r *GormSubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination *p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	if q.UserID() != nil {
-		db = db.Where("user_id = ?", q.UserID())
-	}
-	if q.ServiceName() != nil {
-		db = db.Where("service_name = ?", *q.ServiceName())
-	}
-
-	if q.StartPeriod() != nil {
-		db = db.Where("start_date >= ? AND start_date <= ?", q.StartPeriod().From(), q.StartPeriod().To())
-	}
-
-	if q.EndPeriod() != nil {
-		db = db.Where("end_date >= ? AND end_date <= ?", q.EndPeriod().From(), q.EndPeriod().To())
-	}
+	db = applySubscriptionQuery(db, q)
 
 	if sorting != nil {
 		db = db.Order(sorting.OrderBy + " " + string(sorting.Direction))
@@ -148,30 +136,23 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 	return result, nil
 }
 
-// CalculateTotal считает количество подписок
-func (r *GormSubscriptionRepo) CalculateTotal(ctx context.Context, q domain.SubscriptionQuery) (int, error) {
+// CalculateTotalCost считает сумму стоимости подписок по квери
+func (r *GormSubscriptionRepo) CalculateTotalCost(ctx context.Context, q domain.SubscriptionQuery) (int, error) {
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
-	if q.UserID() != nil {
-		db = db.Where("user_id = ?", q.UserID())
-	}
-	if q.ServiceName() != nil {
-		db = db.Where("service_name = ?", *q.ServiceName())
-	}
+	db = applySubscriptionQuery(db, q)
 
-	if q.StartPeriod() != nil {
-		db = db.Where("start_date >= ? AND start_date <= ?", q.StartPeriod().From(), q.StartPeriod().To())
-	}
+	var total int64
+	err := db.
+		Select("COALESCE(SUM(price), 0)").
+		Scan(&total).
+		Error
 
-	if q.EndPeriod() != nil {
-		db = db.Where("end_date >= ? AND end_date <= ?", q.EndPeriod().From(), q.EndPeriod().To())
-	}
-
-	var count int64
-	if err := db.Count(&count).Error; err != nil {
+	if err != nil {
 		return 0, err
 	}
-	return int(count), nil
+
+	return int(total), nil
 }
 
 // cryptoRandInt генерирует случайное число используя crypto/rand
@@ -190,6 +171,79 @@ func cryptoRandInt(max int) (int, error) {
 
 	// Приводим к диапазону [0, max)
 	return int(val % uint64(max)), nil
+}
+
+func applySubscriptionQuery(db *gorm.DB, q domain.SubscriptionQuery) *gorm.DB {
+	if q.UserID() != nil {
+		db = db.Where("user_id = ?", q.UserID())
+	}
+	if q.ServiceName() != nil {
+		db = db.Where("service_name = ?", *q.ServiceName())
+	}
+
+	var conds []string
+	var args []interface{}
+
+	// Фильтр start_date
+	if q.StartPeriod() != nil {
+		from := q.StartPeriod().From()
+		to := q.StartPeriod().To()
+		if from != nil && to != nil {
+			conds = append(conds, "(start_date BETWEEN ? AND ?)")
+			args = append(args, from, to)
+		} else if from != nil {
+			conds = append(conds, "(start_date >= ?)")
+			args = append(args, from)
+		} else if to != nil {
+			conds = append(conds, "(start_date <= ?)")
+			args = append(args, to)
+		}
+	}
+
+	// Фильтр end_date
+	if q.EndPeriod() != nil {
+		from := q.EndPeriod().From()
+		to := q.EndPeriod().To()
+		includeNull := false
+		// если верхняя граница не заполнена
+		if to == nil {
+			includeNull = q.EndIsNil() == nil || *q.EndIsNil()
+		} else {
+			if q.EndIsNil() != nil {
+				includeNull = *q.EndIsNil()
+			}
+		}
+
+		endConds := []string{}
+		endArgs := []interface{}{}
+
+		if from != nil && to != nil {
+			endConds = append(endConds, "(end_date BETWEEN ? AND ?)")
+			endArgs = append(endArgs, from, to)
+		} else if from != nil {
+			endConds = append(endConds, "end_date >= ?")
+			endArgs = append(endArgs, from)
+		} else if to != nil {
+			endConds = append(endConds, "end_date <= ?")
+			endArgs = append(endArgs, to)
+		}
+
+		if includeNull {
+			endConds = append(endConds, "end_date IS NULL")
+		}
+
+		// Объединяем условия end_date через OR
+		if len(endConds) > 0 {
+			conds = append(conds, "("+strings.Join(endConds, " OR ")+")")
+			args = append(args, endArgs...)
+		}
+	}
+
+	if len(conds) > 0 {
+		db = db.Where(strings.Join(conds, " AND "), args...)
+	}
+
+	return db
 }
 
 // TODO метрика
