@@ -82,9 +82,6 @@ jobs:
   # --------------------
   test-integration:
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.run_integration_tests == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +98,6 @@ jobs:
   api-tests:
     name: Hurl API Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     continue-on-error: true
 
     env:
