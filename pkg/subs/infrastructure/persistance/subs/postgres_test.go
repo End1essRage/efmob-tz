@@ -13,51 +13,18 @@ import (
 	"time"
 
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
+	common_test "github.com/end1essrage/efmob-tz/pkg/common/testing"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	tc "github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func setupPostgresContainer(ctx context.Context) (tc.Container, string, error) {
-	req := tc.ContainerRequest{
-		Image:        "postgres:15",
-		ExposedPorts: []string{"5432/tcp"},
-		Env: map[string]string{
-			"POSTGRES_USER":     "test",
-			"POSTGRES_PASSWORD": "test",
-			"POSTGRES_DB":       "testdb",
-		},
-		WaitingFor: wait.ForListeningPort("5432/tcp"),
-	}
-	container, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, "", err
-	}
-
-	host, err := container.Host(ctx)
-	if err != nil {
-		return nil, "", err
-	}
-	port, err := container.MappedPort(ctx, "5432")
-	if err != nil {
-		return nil, "", err
-	}
-
-	dsn := fmt.Sprintf("host=%s port=%s user=test password=test dbname=testdb sslmode=disable", host, port.Port())
-	return container, dsn, nil
-}
-
 func TestSubscriptionCommands_CRUD(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -101,7 +68,7 @@ func TestSubscriptionCommands_CRUD(t *testing.T) {
 
 func TestSubscriptionRepo_FindAndCalculateTotal(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -147,7 +114,7 @@ func TestSubscriptionRepo_FindAndCalculateTotal(t *testing.T) {
 
 func TestSubscriptionRepo_Queries(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -343,7 +310,7 @@ func TestSubscriptionRepo_Queries(t *testing.T) {
 
 func TestSubscriptionRepo_BoundaryMonthFilters(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -446,7 +413,7 @@ func mustPeriod(from, to *time.Time) *domain.Period {
 
 func TestSubscriptionRepo_ConcurrentUpdateOptimisticLocking(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -549,7 +516,7 @@ func TestSubscriptionRepo_ConcurrentUpdateOptimisticLocking(t *testing.T) {
 
 func TestSubscriptionRepo_ExplicitVersionConflict(t *testing.T) {
 	ctx := context.Background()
-	container, dsn, err := setupPostgresContainer(ctx)
+	container, dsn, err := common_test.SetupPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}

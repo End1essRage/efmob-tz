@@ -18,7 +18,6 @@ import (
 func TestCreateSubscriptionPublishesEvent(t *testing.T) {
 	// Создаем тестовое приложение
 	app := testapp.NewTestApp(t)
-
 	userID := uuid.New()
 
 	// Создаем подписку через handler

@@ -5,11 +5,13 @@ import (
 	_ "embed"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	common "github.com/end1essrage/efmob-tz/pkg/common/cmd"
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
 	common_metrics "github.com/end1essrage/efmob-tz/pkg/common/metrics"
+	common_test "github.com/end1essrage/efmob-tz/pkg/common/testing"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
 	subs_repo "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 	"github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/publisher"
@@ -49,7 +51,7 @@ func main() {
 	ctx := common.Context()
 
 	//создаем роутер
-	r, cleanup := createSubsMicroservice(cfg)
+	r, cleanup := createSubsMicroservice(ctx, cfg)
 	//создаем http сервер
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -78,16 +80,33 @@ func main() {
 	}
 
 	// очищаем ресурсы
-	cleanup()
+	for _, fn := range cleanup {
+		fn()
+	}
 }
 
-func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
+func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func()) {
 	log := l.Logger().Log("main", "createSubsMicroservice")
 
 	// бд
-	var cleanupDB func()
+	cleanup := make([]func(), 0)
 
 	dsn := cfg.PostgresDSN
+	// DEV - создаем тест контейнер
+	if common.ENV(cfg.Env) == common.ENV_DEV {
+		container, cs, err := common_test.SetupPostgresContainer(ctx)
+		if err != nil {
+			log.Fatalf("failed to start postgres container: %v", err)
+		}
+
+		dsn = cs
+
+		// регистрируем очистку контейнера
+		cleanup = append(cleanup, func() {
+			_ = container.Terminate(context.Background())
+		})
+	}
+
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent), // отключаем логирование
 	})
@@ -95,8 +114,8 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 
-	// только в ТЕСТ
-	if common.ENV(cfg.Env) == common.ENV_TEST {
+	// выключаем миграцию в проде
+	if common.ENV(cfg.Env) != common.ENV_PROD {
 		// Авто-миграция таблицы subscriptions
 		err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
 		if err != nil {
@@ -109,9 +128,10 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	// Если нужно закрывать соединение при shutdown
 	sqlDB, err := gormDB.DB()
 	if err == nil {
-		cleanupDB = func() {
+		// регистрируем очистку подключения
+		cleanup = append(cleanup, func() {
 			_ = sqlDB.Close()
-		}
+		})
 	}
 
 	di := container.NewContainer(pgRepo, pgRepo, pgRepo)
@@ -134,15 +154,23 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	// создаем и запускаем EventWorker
 	publisher := publisher.NewMockPublisher()
 	worker := subs_repo.NewEventWorker(gormDB, publisher, 5*time.Second, 100)
-	go worker.Run(context.Background()) // запускаем в отдельной горутине
-	log.Info("EventWorker запущен")
 
-	cleanup := func() {
-		log.Info("очистка зависимостей")
-		if cleanupDB != nil {
-			cleanupDB()
-		}
-	}
+	workerCtx, workerCancel := context.WithCancel(ctx)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(workerCtx)
+	}()
+
+	cleanup = append(cleanup, func() {
+		workerCancel()
+		wg.Wait()
+	})
+
+	log.Info("EventWorker запущен")
 
 	return r, cleanup
 }

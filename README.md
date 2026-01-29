@@ -4,6 +4,11 @@
 3. устанавливаем taskfile
 4. task up
 
+## ENV
+1. DEV - внешние сервисы(postgres) запускается как test-container
+2. TEST - внешние сервисы(postgres) запускается через docker-compose
+2. PROD - выключена миграция
+
 ## Docs
 - Настроена генерация Swagger документации
 - Автоматический деплой документации на GitHub Pages
