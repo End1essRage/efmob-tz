@@ -17,13 +17,14 @@ type Container struct {
 }
 
 func NewContainer(
-	subRepo domain.SubscriptionRepository,
+	subRepo domain.SubscriptionRepository, // для queries
+	subRepoTx domain.SubscriptionRepositoryWithTx, // для commands с транзакциями
 	statsRepo domain.SubscriptionStatsRepository,
 ) *Container {
 	return &Container{
-		CreateSubscriptionHandler: cmd.NewCreateSubscriptionHandler(subRepo),
+		CreateSubscriptionHandler: cmd.NewCreateSubscriptionHandler(subRepoTx),
 		UpdateSubscriptionHandler: cmd.NewUpdateSubscriptionHandler(subRepo),
-		DeleteSubscriptionHandler: cmd.NewDeleteSubscriptionHandler(subRepo),
+		DeleteSubscriptionHandler: cmd.NewDeleteSubscriptionHandler(subRepoTx),
 
 		GetSubscriptionHandler:   quer.NewGetSubscriptionHandler(subRepo),
 		ListSubscriptionsHandler: quer.NewListSubscriptionsHandler(subRepo),

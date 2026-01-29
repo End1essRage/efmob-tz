@@ -19,10 +19,10 @@ type CreateSubscriptionCommand struct {
 }
 
 type CreateSubscriptionHandler struct {
-	repo domain.SubscriptionRepository
+	repo domain.SubscriptionRepositoryWithTx
 }
 
-func NewCreateSubscriptionHandler(repo domain.SubscriptionRepository) *CreateSubscriptionHandler {
+func NewCreateSubscriptionHandler(repo domain.SubscriptionRepositoryWithTx) *CreateSubscriptionHandler {
 	return &CreateSubscriptionHandler{repo: repo}
 }
 
@@ -46,7 +46,25 @@ func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscr
 		return nil, err
 	}
 
-	if _, err := h.repo.Create(ctx, sub); err != nil {
+	err = h.repo.RunInTransaction(ctx, func(tx domain.TxSubscriptionRepository) error {
+		// создаём подписку
+		uid, err := tx.Create(ctx, sub)
+		if err != nil {
+			return err
+		}
+
+		// создаем событие
+		event := domain.SubCreatedEvent{
+			Id:     uid,
+			UserID: sub.UserID(),
+		}
+		if err := tx.CreateEvent(ctx, event); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		log.Errorf("creating error: %v", err)
 		return nil, err
 	}

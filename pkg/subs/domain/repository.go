@@ -7,6 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type TxSubscriptionRepository interface {
+	SubscriptionRepository // все CRUD методы
+	EventsRepository       // метод CreateEvent
+}
+
+type SubscriptionRepositoryWithTx interface {
+	RunInTransaction(ctx context.Context, fn func(tx TxSubscriptionRepository) error) error
+}
+
 type SubscriptionRepository interface {
 	Create(ctx context.Context, sub *Subscription) (uuid.UUID, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Subscription, error)
@@ -14,6 +23,11 @@ type SubscriptionRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	Find(ctx context.Context, q SubscriptionQuery, p p.Pagination, s *p.Sorting) ([]*Subscription, error)
 }
+
 type SubscriptionStatsRepository interface {
 	CalculateTotalCost(ctx context.Context, q SubscriptionQuery) (int, error)
+}
+
+type EventsRepository interface {
+	CreateEvent(ctx context.Context, event Event) error
 }
