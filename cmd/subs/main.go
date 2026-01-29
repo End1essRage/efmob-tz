@@ -103,7 +103,9 @@ func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func(
 
 		// регистрируем очистку контейнера
 		cleanup = append(cleanup, func() {
-			_ = container.Terminate(context.Background())
+			if err := container.Terminate(context.Background()); err != nil {
+				log.Errorf("ошибка остановки постгрес контейнера ")
+			}
 		})
 	}
 
