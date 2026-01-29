@@ -2,6 +2,7 @@ package testapp
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,7 +28,9 @@ type TestApp struct {
 
 func (a *TestApp) Clean() {
 	ctx := context.Background()
-	a.PgContainer.Terminate(ctx)
+	if err := a.PgContainer.Terminate(ctx); err != nil {
+		fmt.Print("")
+	}
 }
 
 // NewAppTestBuilder создаёт тестовое приложение
