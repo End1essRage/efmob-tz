@@ -21,7 +21,7 @@ func TestDeleteSubscriptionPublishesEvent(t *testing.T) {
 	userID := uuid.New()
 
 	// создаем подписку
-	sub, err := app.Container.CreateSubscriptionHandler.Handle(context.Background(), commands.CreateSubscriptionCommand{
+	sub, err := app.Di.CreateSubscriptionHandler.Handle(context.Background(), commands.CreateSubscriptionCommand{
 		UserID:      userID,
 		ServiceName: "Spotify",
 		Price:       200,
@@ -30,7 +30,7 @@ func TestDeleteSubscriptionPublishesEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// удаляем подписку
-	err = app.Container.DeleteSubscriptionHandler.Handle(context.Background(), commands.DeleteSubscriptionCommand{
+	err = app.Di.DeleteSubscriptionHandler.Handle(context.Background(), commands.DeleteSubscriptionCommand{
 		ID: sub.ID(),
 	})
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestDeleteSubscriptionNotFoundDoesNotPublishEvent(t *testing.T) {
 	app := testapp.NewTestApp(t)
 
 	// пытаемся удалить несуществующую подписку
-	err := app.Container.DeleteSubscriptionHandler.Handle(context.Background(), commands.DeleteSubscriptionCommand{
+	err := app.Di.DeleteSubscriptionHandler.Handle(context.Background(), commands.DeleteSubscriptionCommand{
 		ID: uuid.New(),
 	})
 

@@ -21,7 +21,7 @@ func TestCreateSubscriptionPublishesEvent(t *testing.T) {
 	userID := uuid.New()
 
 	// Создаем подписку через handler
-	sub, err := app.Container.CreateSubscriptionHandler.Handle(context.Background(), commands.CreateSubscriptionCommand{
+	sub, err := app.Di.CreateSubscriptionHandler.Handle(context.Background(), commands.CreateSubscriptionCommand{
 		UserID:      userID,
 		ServiceName: "Netflix",
 		Price:       100,

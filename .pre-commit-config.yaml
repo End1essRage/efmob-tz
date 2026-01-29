@@ -32,6 +32,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: go-test-integration
+        name: go test-integration
+        entry: go test -tags=integration ./...
+        language: system
+        pass_filenames: false
+
       # вынести в переменные список сервисов
       - id: swagger-sync
         name: swagger generate & sync
