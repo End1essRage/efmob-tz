@@ -58,8 +58,9 @@ jobs:
 
       - name: Merge coverage
         run: |
+          GOMODCACHE=$(mktemp -d)
+          export GOMODCACHE
           go install github.com/wadey/gocovmerge@latest
-          go mod tidy
           gocovmerge coverage_unit.out coverage_integration.out > coverage_total.out
           go tool cover -func=coverage_total.out
 
