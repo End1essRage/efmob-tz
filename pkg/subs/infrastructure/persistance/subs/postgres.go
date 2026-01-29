@@ -78,7 +78,7 @@ func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscript
 			}
 
 			// Если запись существует, значит version не совпал
-			return domain.ErrConcurrentModification
+			return ErrConcurrentModification
 		}
 
 		return nil
@@ -294,7 +294,7 @@ func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) e
 		}
 		return nil
 	}
-	return lastErr
+	return NewErrorRetriesExceeded(lastErr)
 }
 
 func isRetryableError(err error) bool {
