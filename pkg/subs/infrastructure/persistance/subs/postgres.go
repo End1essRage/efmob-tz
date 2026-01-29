@@ -13,10 +13,18 @@ import (
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type GormSubscriptionRepo struct {
 	db *gorm.DB
+}
+
+var allowed = map[string]bool{
+	"price":      true,
+	"start_date": true,
+	"end_date":   true,
+	"created_at": true,
 }
 
 func NewGormSubscriptionRepo(db *gorm.DB) *GormSubscriptionRepo {
@@ -112,25 +120,38 @@ func (r *GormSubscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // Find возвращает список подписок
-func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination *p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
+func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQuery, pagination p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "GormSubscriptionRepo",
+		Func: "Find",
+		Ctx:  ctx,
+	})
+
 	db := r.db.WithContext(ctx).Model(&SubscriptionModel{})
 
 	db = applySubscriptionQuery(ctx, db, q)
 
+	//применяем сортировку
 	if sorting != nil {
-		db = db.Order(sorting.OrderBy + " " + string(sorting.Direction))
+		log.Debugf("применяем сортировку %+v", *sorting)
+		if !allowed[sorting.OrderBy] {
+			return nil, ErrInvalidSortingField
+		}
+		desc := sorting.Direction == p.Descending
+
+		db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: sorting.OrderBy}, Desc: desc})
 	}
 
-	if pagination != nil {
-		db = db.Limit(pagination.Limit).Offset(pagination.Offset)
-	}
+	//применяем пагинацию
+	log.Debugf("применяем пагинацию %+v", pagination)
+	db = db.Limit(pagination.Limit).Offset(pagination.Offset)
 
 	var models []SubscriptionModel
 	if err := db.Find(&models).Error; err != nil {
 		return nil, err
 	}
 
-	var result []*domain.Subscription
+	result := make([]*domain.Subscription, 0, len(models))
 	for _, m := range models {
 		result = append(result, m.ToDomain())
 	}
@@ -206,7 +227,7 @@ func applySubscriptionQuery(ctx context.Context, db *gorm.DB, q domain.Subscript
 			args = append(args, to)
 		}
 
-		if q.EndIsNil() != nil && !*q.EndIsNil() {
+		if q.IncludeNullEndDate() != nil && !*q.IncludeNullEndDate() {
 			conds = append(conds, "end_date IS NULL")
 		}
 	}
@@ -218,10 +239,10 @@ func applySubscriptionQuery(ctx context.Context, db *gorm.DB, q domain.Subscript
 		includeNull := false
 		// если верхняя граница не заполнена
 		if to == nil {
-			includeNull = q.EndIsNil() == nil || *q.EndIsNil()
+			includeNull = q.IncludeNullEndDate() == nil || *q.IncludeNullEndDate()
 		} else {
-			if q.EndIsNil() != nil {
-				includeNull = *q.EndIsNil()
+			if q.IncludeNullEndDate() != nil {
+				includeNull = *q.IncludeNullEndDate()
 			}
 		}
 

@@ -12,7 +12,7 @@ type SubscriptionRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Subscription, error)
 	Update(ctx context.Context, sub *Subscription) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	Find(ctx context.Context, q SubscriptionQuery, p *p.Pagination, s *p.Sorting) ([]*Subscription, error)
+	Find(ctx context.Context, q SubscriptionQuery, p p.Pagination, s *p.Sorting) ([]*Subscription, error)
 }
 type SubscriptionStatsRepository interface {
 	CalculateTotalCost(ctx context.Context, q SubscriptionQuery) (int, error)

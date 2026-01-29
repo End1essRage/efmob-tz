@@ -5,7 +5,10 @@ import (
 	"fmt"
 )
 
-var ErrConcurrentModification = errors.New("concurrent modification")
+var (
+	ErrConcurrentModification = errors.New("concurrent modification")
+	ErrInvalidSortingField    = errors.New("invalid sorting field")
+)
 
 type ErrorRetriesExceeded struct {
 	err error

@@ -70,6 +70,8 @@ func MapError(err error) *AppError {
 	// Infra errors
 	case errors.Is(err, infra.ErrConcurrentModification):
 		return &AppError{Err: err, HTTPStatus: http.StatusConflict, Code: "CONCURRENT_MODIFICATION"}
+	case errors.Is(err, infra.ErrInvalidSortingField):
+		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_SORTING_FIELD"}
 	// Subscription domain errors
 	case errors.Is(err, domain.ErrInvalidServiceName):
 		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_SERVICE_NAME"}

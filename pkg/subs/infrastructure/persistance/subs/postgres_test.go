@@ -127,7 +127,7 @@ func TestSubscriptionRepo_FindAndCalculateTotal(t *testing.T) {
 
 	// --- Find с фильтром ---
 	query := domain.NewSubscriptionQuery(&userID, nil, nil, nil, nil)
-	pagination := &p.Pagination{Limit: 2, Offset: 0}
+	pagination := p.Pagination{Limit: 2, Offset: 0}
 	sorting := &p.Sorting{OrderBy: "price", Direction: p.Descending}
 
 	results, err := repo.Find(ctx, query, pagination, sorting)
@@ -330,7 +330,7 @@ func TestSubscriptionRepo_Queries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, err := repo.Find(ctx, tt.query, nil, nil)
+			results, err := repo.Find(ctx, tt.query, p.DefaultPagination(), nil)
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.wantCount, "не совпадает количество подписок")
 		})
@@ -420,7 +420,7 @@ func TestSubscriptionRepo_BoundaryMonthFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, err := repo.Find(ctx, tt.query, nil, nil)
+			results, err := repo.Find(ctx, tt.query, p.DefaultPagination(), nil)
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.wantCount, "не совпадает количество подписок")
 		})
