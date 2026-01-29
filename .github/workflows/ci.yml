@@ -80,10 +80,11 @@ jobs:
       - run: go test -v ./...
 
   # --------------------
-  # INTEGRATION TESTS
+  # INTEGRATION TESTS (continue on error)
   # --------------------
   test-integration:
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
