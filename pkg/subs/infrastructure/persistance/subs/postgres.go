@@ -10,6 +10,7 @@ import (
 
 	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -102,7 +103,7 @@ func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscript
 				return domain.ErrSubscriptionNotFound
 			}
 
-			return ErrConcurrentModification
+			return application.ErrConcurrentModification
 		}
 
 		return nil
@@ -150,7 +151,7 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 	if sorting != nil {
 		log.Debugf("применяем сортировку %+v", *sorting)
 		if !allowed[sorting.OrderBy] {
-			return nil, ErrInvalidSortingField
+			return nil, application.ErrInvalidSortingField
 		}
 		desc := sorting.Direction == p.Descending
 
@@ -331,7 +332,7 @@ func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) e
 		}
 		return nil
 	}
-	return NewErrorRetriesExceeded(lastErr)
+	return application.NewErrorRetriesExceeded(lastErr)
 }
 
 func isRetryableError(err error) bool {

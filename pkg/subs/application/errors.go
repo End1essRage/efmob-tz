@@ -6,8 +6,22 @@ import (
 	"net/http"
 
 	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
-	infra "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 )
+
+// infra errors map
+var ErrConcurrentModification = errors.New("concurrent modification")
+var ErrInvalidSortingField = errors.New("invalid sorting field")
+
+type ErrorRetriesExceeded struct {
+	err error
+}
+
+func NewErrorRetriesExceeded(err error) *ErrorRetriesExceeded {
+	return &ErrorRetriesExceeded{err: err}
+}
+func (e ErrorRetriesExceeded) Error() string {
+	return fmt.Sprintf("превышено максимальное кол-во попыток, последняя ошибка: %v", e.err)
+}
 
 type ErrorValidationCommand struct {
 	Msg string
@@ -57,7 +71,7 @@ func MapError(err error) *AppError {
 		}
 	}
 
-	var retriesExcErr *infra.ErrorRetriesExceeded
+	var retriesExcErr *ErrorRetriesExceeded
 	if errors.As(err, &retriesExcErr) {
 		return &AppError{
 			Err:        err,
@@ -68,9 +82,9 @@ func MapError(err error) *AppError {
 
 	switch {
 	// Infra errors
-	case errors.Is(err, infra.ErrConcurrentModification):
+	case errors.Is(err, ErrConcurrentModification):
 		return &AppError{Err: err, HTTPStatus: http.StatusConflict, Code: "CONCURRENT_MODIFICATION"}
-	case errors.Is(err, infra.ErrInvalidSortingField):
+	case errors.Is(err, ErrInvalidSortingField):
 		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_SORTING_FIELD"}
 	// Subscription domain errors
 	case errors.Is(err, domain.ErrInvalidServiceName):
