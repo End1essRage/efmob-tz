@@ -45,19 +45,20 @@ func (r *GormSubscriptionRepo) Create(ctx context.Context, sub *domain.Subscript
 
 // Update с оптимистичной блокировкой
 func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscription) error {
-	err := r.withRetry(ctx, func() error {
+	return r.withRetry(ctx, func() error {
 		model := FromDomain(sub)
 
-		res := r.db.WithContext(ctx).Model(&SubscriptionModel{}).
-			Where("id = ? AND version = ?", sub.ID(), sub.Version()). // Проверяем ТЕКУЩУЮ версию
+		res := r.db.WithContext(ctx).
+			Model(&SubscriptionModel{}).
+			Where("id = ? AND version = ?", sub.ID(), sub.Version()).
 			Updates(map[string]interface{}{
 				"user_id":      model.UserID,
 				"service_name": model.ServiceName,
 				"price":        model.Price,
 				"start_date":   model.StartDate,
 				"end_date":     model.EndDate,
-				"updated_at":   time.Now(),               // Всегда текущее время
-				"version":      gorm.Expr("version + 1"), // Атомарный инкремент
+				"updated_at":   time.Now(),
+				"version":      gorm.Expr("version + 1"),
 			})
 
 		if res.Error != nil {
@@ -65,25 +66,24 @@ func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscript
 		}
 
 		if res.RowsAffected == 0 {
-			// Проверяем причину
-			var exists bool
-			r.db.WithContext(ctx).Model(&SubscriptionModel{}).
-				Select("1").
+			var count int64
+			err := r.db.WithContext(ctx).
+				Model(&SubscriptionModel{}).
 				Where("id = ?", sub.ID()).
-				Limit(1).
-				Find(&exists)
+				Count(&count).Error
+			if err != nil {
+				return err
+			}
 
-			if !exists {
+			if count == 0 {
 				return domain.ErrSubscriptionNotFound
 			}
 
-			// Если запись существует, значит version не совпал
 			return ErrConcurrentModification
 		}
 
 		return nil
 	})
-	return err
 }
 
 // GetByID возвращает подписку по ID
@@ -301,6 +301,18 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+
+	// прерывание контекста
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	// not found нет смысла ретраить
+	if errors.Is(err, domain.ErrSubscriptionNotFound) {
+		return false
+	}
+
 	// GORM может вернуть gorm.ErrInvalidTransaction, gorm.ErrInvalidSQL и др.
 	// Основная цель — сетевые ошибки / connection refused
 	var netErr interface{ Temporary() bool }

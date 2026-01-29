@@ -20,6 +20,7 @@ import (
 // @Param request body SubscriptionCreateRequest true "Subscription data"
 // @Success 201 {object} Subscription
 // @Failure 400 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions [post]
 func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +109,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 // @Success 202 "Accepted"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [patch]
 func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +187,7 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 // @Param id path string true "Subscription ID"
 // @Success 204 "No Content"
 // @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [delete]
 func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {

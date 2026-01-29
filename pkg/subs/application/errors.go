@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
+	infra "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
 )
 
 type ErrorValidationCommand struct {
@@ -56,9 +57,20 @@ func MapError(err error) *AppError {
 		}
 	}
 
+	var retriesExcErr *infra.ErrorRetriesExceeded
+	if errors.As(err, &retriesExcErr) {
+		return &AppError{
+			Err:        err,
+			HTTPStatus: http.StatusInternalServerError,
+			Code:       "INTERNAL_ERROR",
+		}
+	}
+
 	switch {
+	// Infra errors
+	case errors.Is(err, infra.ErrConcurrentModification):
+		return &AppError{Err: err, HTTPStatus: http.StatusConflict, Code: "CONCURRENT_MODIFICATION"}
 	// Subscription domain errors
-	//400
 	case errors.Is(err, domain.ErrInvalidServiceName):
 		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_SERVICE_NAME"}
 	case errors.Is(err, domain.ErrInvalidPrice):
@@ -67,7 +79,6 @@ func MapError(err error) *AppError {
 		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_DATES"}
 	case errors.Is(err, domain.ErrInvalidPeriod):
 		return &AppError{Err: err, HTTPStatus: http.StatusBadRequest, Code: "INVALID_PERIOD"}
-	//404
 	case errors.Is(err, domain.ErrSubscriptionNotFound):
 		return &AppError{Err: err, HTTPStatus: http.StatusNotFound, Code: "NOT_FOUND"}
 	// Default - 500 Internal Server Error
