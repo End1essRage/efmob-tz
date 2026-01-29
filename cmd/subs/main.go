@@ -80,16 +80,25 @@ func main() {
 	}
 
 	// очищаем ресурсы
-	for _, fn := range cleanup {
-		fn()
-	}
+	cleanup()
 }
 
-func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func()) {
+func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, func()) {
 	log := l.Logger().Log("main", "createSubsMicroservice")
 
 	// бд
-	cleanup := make([]func(), 0)
+	cleanupStack := make([]func(), 0)
+
+	pushCleanup := func(fn func()) {
+		cleanupStack = append(cleanupStack, fn)
+	}
+
+	popAllCleanup := func() {
+		// чистим в обратном порядке
+		for i := len(cleanupStack) - 1; i >= 0; i-- {
+			cleanupStack[i]()
+		}
+	}
 
 	dsn := cfg.PostgresDSN
 	// DEV - создаем тест контейнер
@@ -102,9 +111,9 @@ func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func(
 		dsn = cs
 
 		// регистрируем очистку контейнера
-		cleanup = append(cleanup, func() {
+		pushCleanup(func() {
 			if err := container.Terminate(context.Background()); err != nil {
-				log.Errorf("ошибка остановки постгрес контейнера ")
+				log.Errorf("ошибка остановки постгрес контейнера: %v", err)
 			}
 		})
 	}
@@ -129,7 +138,7 @@ func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func(
 	sqlDB, err := gormDB.DB()
 	if err == nil {
 		// регистрируем очистку подключения
-		cleanup = append(cleanup, func() {
+		pushCleanup(func() {
 			_ = sqlDB.Close()
 		})
 	}
@@ -165,12 +174,12 @@ func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func(
 		worker.Run(workerCtx)
 	}()
 
-	cleanup = append(cleanup, func() {
+	pushCleanup(func() {
 		workerCancel()
 		wg.Wait()
 	})
 
 	log.Info("EventWorker запущен")
 
-	return r, cleanup
+	return r, popAllCleanup
 }
