@@ -16,11 +16,9 @@ import (
 )
 
 func TestCreateSubscriptionPublishesEvent(t *testing.T) {
-	// Создаем тестовое приложение
 	app := testapp.NewTestApp(t)
 	userID := uuid.New()
 
-	// Создаем подписку через handler
 	sub, err := app.Di.CreateSubscriptionHandler.Handle(context.Background(), commands.CreateSubscriptionCommand{
 		UserID:      userID,
 		ServiceName: "Netflix",
@@ -31,16 +29,21 @@ func TestCreateSubscriptionPublishesEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sub)
 
-	// Запускаем воркер в фоне, чтобы обработал событие
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// Запускаем воркер на 1 секунду
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	go app.Worker.Run(ctx)
 
-	// Ждем немного, чтобы воркер успел обработать событие
-	time.Sleep(100 * time.Millisecond)
+	// Ждем, пока событие появится, максимум 1 сек
+	var events []testapp.PublishedEvent
+	for start := time.Now(); time.Since(start) < time.Second; {
+		events = app.Publisher.GetEvents()
+		if len(events) > 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 
-	// Проверяем, что событие опубликовано
-	events := app.Publisher.GetEvents()
 	require.Len(t, events, 1)
 	require.Equal(t, domain.SubCreatedEvent{}.Type(), events[0].Topic)
 }
