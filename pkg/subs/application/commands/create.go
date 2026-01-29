@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	subsMetrics "github.com/end1essrage/efmob-tz/pkg/subs/metrics"
 	"github.com/google/uuid"
@@ -26,6 +27,12 @@ func NewCreateSubscriptionHandler(repo domain.SubscriptionRepository) *CreateSub
 }
 
 func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscriptionCommand) (*domain.Subscription, error) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "CreateSubscriptionHandler",
+		Func: "Handle",
+		Ctx:  ctx,
+	})
+
 	sub, err := domain.NewSubscription(
 		uuid.Nil,
 		cmd.UserID,
@@ -35,12 +42,12 @@ func (h *CreateSubscriptionHandler) Handle(ctx context.Context, cmd CreateSubscr
 		cmd.EndDate,
 	)
 	if err != nil {
-		// ошибка валидации при создании записи
+		log.Errorf("entity validation error: %v", err)
 		return nil, err
 	}
 
 	if _, err := h.repo.Create(ctx, sub); err != nil {
-		// ошибка на стороне репозитория
+		log.Errorf("creating error: %v", err)
 		return nil, err
 	}
 

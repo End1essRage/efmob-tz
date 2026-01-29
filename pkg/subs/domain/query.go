@@ -28,11 +28,11 @@ func (p Period) From() *time.Time { return p.from }
 func (p Period) To() *time.Time   { return p.to }
 
 type SubscriptionQuery struct {
-	userID      *uuid.UUID
-	serviceName *string
-	startPeriod *Period
-	endPeriod   *Period
-	endIsNil    *bool
+	userID             *uuid.UUID
+	serviceName        *string
+	startPeriod        *Period
+	endPeriod          *Period
+	includeNullEndDate *bool
 }
 
 func NewSubscriptionQuery(
@@ -40,19 +40,19 @@ func NewSubscriptionQuery(
 	serviceName *string,
 	startPeriod *Period,
 	endPeriod *Period,
-	endIsNil *bool,
+	includeNullEndDate *bool,
 ) SubscriptionQuery {
 	return SubscriptionQuery{
-		userID:      userID,
-		serviceName: serviceName,
-		startPeriod: startPeriod,
-		endPeriod:   endPeriod,
-		endIsNil:    endIsNil,
+		userID:             userID,
+		serviceName:        serviceName,
+		startPeriod:        startPeriod,
+		endPeriod:          endPeriod,
+		includeNullEndDate: includeNullEndDate,
 	}
 }
 
-func (q SubscriptionQuery) UserID() *uuid.UUID   { return q.userID }
-func (q SubscriptionQuery) ServiceName() *string { return q.serviceName }
-func (q SubscriptionQuery) StartPeriod() *Period { return q.startPeriod }
-func (q SubscriptionQuery) EndPeriod() *Period   { return q.endPeriod }
-func (q SubscriptionQuery) EndIsNil() *bool      { return q.endIsNil }
+func (q SubscriptionQuery) UserID() *uuid.UUID        { return q.userID }
+func (q SubscriptionQuery) ServiceName() *string      { return q.serviceName }
+func (q SubscriptionQuery) StartPeriod() *Period      { return q.startPeriod }
+func (q SubscriptionQuery) EndPeriod() *Period        { return q.endPeriod }
+func (q SubscriptionQuery) IncludeNullEndDate() *bool { return q.includeNullEndDate }

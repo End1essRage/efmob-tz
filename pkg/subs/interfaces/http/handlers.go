@@ -20,6 +20,7 @@ import (
 // @Param request body SubscriptionCreateRequest true "Subscription data"
 // @Success 201 {object} Subscription
 // @Failure 400 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions [post]
 func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
@@ -31,17 +32,17 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 
 	var req SubscriptionCreateRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
-		log.Errorf("ошибка парсинга тела запроса: %v", err)
+		log.Warnf("ошибка парсинга тела запроса: %v", err)
 		return
 	}
 	sD, err := parseDate(w, req.StartDate)
 	if err != nil {
-		log.Errorf("ошибка парсинга даты: %v", err)
+		log.Warnf("ошибка парсинга даты: %v", err)
 		return
 	}
 	eD, err := parseOptionalDate(w, req.EndDate)
 	if err != nil {
-		log.Errorf("ошибка парсинга опциональной даты: %v", err)
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
@@ -55,7 +56,6 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 
 	record, err := h.container.CreateSubscriptionHandler.Handle(r.Context(), cmd)
 	if err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -83,12 +83,12 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
+		log.Warnf("ошибка парсинга query: %v", err)
 		return
 	}
 
 	record, err := h.container.GetSubscriptionHandler.Handle(r.Context(), queries.GetSubscriptionQuery{ID: uid})
 	if err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -108,6 +108,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 // @Success 202 "Accepted"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [patch]
 func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
@@ -119,17 +120,19 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
+		log.Warnf("ошибка парсинга query: %v", err)
 		return
 	}
 
 	var req SubscriptionUpdateRequest
 	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
-		log.Errorf("ошибка парсинга тела запроса: %v", err)
+		log.Warnf("ошибка парсинга тела запроса: %v", err)
 		return
 	}
 
 	sD, err := parseOptionalDate(w, req.StartDate)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
@@ -147,17 +150,16 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 			// есть значение
 			parsedTime, err := parseDate(w, req.EndDate.Value())
 			if err != nil {
+				log.Warnf("ошибка парсинга даты: %v", err)
 				return
 			}
 			endDate = &parsedTime
 		}
 	} else {
+		log.Warn("бесполезный update")
 		// если не было остальных полей
 		if req.Price == nil && sD == nil {
-			utils.WriteJSON(w, http.StatusBadRequest, ErrorResponse{
-				Error: "no fields to update",
-				Code:  "UNNECESSARY_UPDATE",
-			})
+			utils.WriteJSON(w, http.StatusNoContent, nil)
 		}
 	}
 
@@ -168,7 +170,6 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 		EndDate:        endDate,
 		SetEndDateNull: setEndDateNull,
 	}); err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -185,6 +186,7 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 // @Param id path string true "Subscription ID"
 // @Success 204 "No Content"
 // @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /subscriptions/{id} [delete]
 func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
@@ -196,11 +198,11 @@ func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request)
 
 	uid, err := extrudeUidFromQuery(w, r)
 	if err != nil {
+		log.Warnf("ошибка парсинга query: %v", err)
 		return
 	}
 
 	if err := h.container.DeleteSubscriptionHandler.Handle(r.Context(), commands.DeleteSubscriptionCommand{ID: uid}); err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -238,6 +240,7 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 
 	var req SubscriptionQueryRequest
 	if !utils.ParseQuery(w, r, &req) {
+		log.Warnf("ошибка парсинга query")
 		return
 	}
 
@@ -245,36 +248,34 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 	// Парсим optional dates
 	sfD, err := parseOptionalDate(w, req.StartFrom)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 	stD, err := parseOptionalDate(w, req.StartTo)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
 	efD, err := parseOptionalDate(w, req.EndFrom)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 	etD, err := parseOptionalDate(w, req.EndTo)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
 	// собираем пагинацию
-	var pagination *persistance.Pagination
+	pagination := persistance.DefaultPagination()
 	if req.PageSize != nil {
-		pagination = &persistance.Pagination{Limit: *req.PageSize}
-		if req.Page != nil {
-			page := *req.Page
-			if page < 2 {
-				pagination.Offset = 0
-			} else {
-				pagination.Offset = pagination.Limit * (page - 1)
-			}
-		} else {
-			pagination.Offset = 0
-		}
+		pagination.Limit = *req.PageSize
+	}
+	if req.Page != nil {
+		page := *req.Page
+		pagination.Offset = pagination.Limit * (page - 1)
 	}
 
 	// собираем сортировку
@@ -284,7 +285,7 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 		if req.Direction != nil {
 			sorting.Direction = persistance.SortingDirection(*req.Direction)
 		} else {
-			sorting.Direction = persistance.DefaultDirection
+			sorting.Direction = persistance.Descending
 		}
 	}
 
@@ -302,7 +303,6 @@ func (h *SubsHandler) ListSubscriptions(w http.ResponseWriter, r *http.Request) 
 		Sorting:    sorting,
 	})
 	if err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return
@@ -342,25 +342,30 @@ func (h *SubsHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
 
 	var req TotalCostRequest
 	if !utils.ParseQuery(w, r, &req) {
+		log.Warnf("ошибка парсинга query")
 		return
 	}
 
 	// Парсим optional dates
 	sfD, err := parseOptionalDate(w, req.StartFrom)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 	stD, err := parseOptionalDate(w, req.StartTo)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
 	efD, err := parseOptionalDate(w, req.EndFrom)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 	etD, err := parseOptionalDate(w, req.EndTo)
 	if err != nil {
+		log.Warnf("ошибка парсинга опциональной даты: %v", err)
 		return
 	}
 
@@ -374,7 +379,6 @@ func (h *SubsHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
 		WithNilEnd:  req.NilEnd,
 	})
 	if err != nil {
-		log.Errorf("ошибка выполнения: %v", err)
 		// оборачиваем ошибку
 		h.writeAppError(w, err)
 		return

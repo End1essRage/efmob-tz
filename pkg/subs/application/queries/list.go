@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
@@ -19,7 +20,7 @@ type ListSubscriptionsQuery struct {
 	EndTo       *time.Time
 	WithNilEnd  *bool
 
-	Pagination *p.Pagination
+	Pagination p.Pagination
 	Sorting    *p.Sorting
 }
 
@@ -32,12 +33,24 @@ func NewListSubscriptionsHandler(repo domain.SubscriptionRepository) *ListSubscr
 }
 
 func (h *ListSubscriptionsHandler) Handle(ctx context.Context, q ListSubscriptionsQuery) ([]*domain.Subscription, error) {
+	log := logger.Logger().WithFields(logger.LogOptions{
+		Pkg:  "ListSubscriptionsHandler",
+		Func: "Handle",
+		Ctx:  ctx,
+	})
+
 	startPeriod, endPeriod, err := application.Periods(q.StartFrom, q.StartTo, q.EndFrom, q.EndTo)
 	if err != nil {
+		log.Error(err)
 		return nil, err
 	}
 
 	query := domain.NewSubscriptionQuery(q.UserID, q.ServiceName, startPeriod, endPeriod, q.WithNilEnd)
 
-	return h.repo.Find(ctx, query, q.Pagination, q.Sorting)
+	r, err := h.repo.Find(ctx, query, q.Pagination, q.Sorting)
+	if err != nil {
+		log.Error(err)
+	}
+
+	return r, err
 }

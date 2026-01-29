@@ -32,7 +32,7 @@ func (m *MockRepository) Update(ctx context.Context, sub *domain.Subscription) e
 	return args.Error(0)
 }
 
-func (m *MockRepository) Find(ctx context.Context, q domain.SubscriptionQuery, pagination *p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
+func (m *MockRepository) Find(ctx context.Context, q domain.SubscriptionQuery, pagination p.Pagination, sorting *p.Sorting) ([]*domain.Subscription, error) {
 	return nil, nil
 }
 
