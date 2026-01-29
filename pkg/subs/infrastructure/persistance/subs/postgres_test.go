@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package subs
 
 import (
@@ -10,6 +13,7 @@ import (
 	"time"
 
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -500,7 +504,7 @@ func TestSubscriptionRepo_ConcurrentUpdateOptimisticLocking(t *testing.T) {
 					atomic.AddInt32(&successCount, 1)
 					t.Logf("Thread %d attempt %d: успешно обновил цену на %d", threadID, attempt, newPrice)
 					return // Успешно обновили, выходим из горутины
-				} else if errors.Is(err, ErrConcurrentModification) {
+				} else if errors.Is(err, application.ErrConcurrentModification) {
 					atomic.AddInt32(&conflictCount, 1)
 					t.Logf("Thread %d attempt %d: обнаружена конкурентная модификация, пробую снова", threadID, attempt)
 					// Ждем немного перед повторной попыткой
@@ -581,7 +585,7 @@ func TestSubscriptionRepo_ExplicitVersionConflict(t *testing.T) {
 	// Пытаемся изменить вторую копию - должна быть ошибка конкурентной модификации
 	assert.NoError(t, sub2.ChangePrice(200))
 	err = repo.Update(ctx, sub2)
-	assert.ErrorIs(t, err, ErrConcurrentModification, "Должна быть ошибка конкурентной модификации")
+	assert.ErrorIs(t, err, application.ErrConcurrentModification, "Должна быть ошибка конкурентной модификации")
 
 	// Проверяем, что в БД осталась цена из первой операции
 	finalSub, err := repo.GetByID(ctx, subscriptionID)

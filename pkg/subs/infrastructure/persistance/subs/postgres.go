@@ -10,6 +10,7 @@ import (
 
 	"github.com/end1essrage/efmob-tz/pkg/common/logger"
 	p "github.com/end1essrage/efmob-tz/pkg/common/persistance"
+	"github.com/end1essrage/efmob-tz/pkg/subs/application"
 	domain "github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -33,7 +34,22 @@ func NewGormSubscriptionRepo(db *gorm.DB) *GormSubscriptionRepo {
 
 // AutoMigrate создаёт таблицу
 func (r *GormSubscriptionRepo) Migrate() error {
-	return r.db.AutoMigrate(&SubscriptionModel{})
+	if err := r.db.AutoMigrate(&SubscriptionModel{}); err != nil {
+		return err
+	}
+	if err := r.db.AutoMigrate(&EventModel{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// поддержка транзакций
+func (r *GormSubscriptionRepo) RunInTransaction(ctx context.Context, fn func(tx domain.TxSubscriptionRepository) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// временный "транзакционный репозиторий" — это тот же объект, но с другим db
+		txRepo := &GormSubscriptionRepo{db: tx}
+		return fn(txRepo)
+	})
 }
 
 func (r *GormSubscriptionRepo) Create(ctx context.Context, sub *domain.Subscription) (uuid.UUID, error) {
@@ -87,7 +103,7 @@ func (r *GormSubscriptionRepo) Update(ctx context.Context, sub *domain.Subscript
 				return domain.ErrSubscriptionNotFound
 			}
 
-			return ErrConcurrentModification
+			return application.ErrConcurrentModification
 		}
 
 		return nil
@@ -135,7 +151,7 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 	if sorting != nil {
 		log.Debugf("применяем сортировку %+v", *sorting)
 		if !allowed[sorting.OrderBy] {
-			return nil, ErrInvalidSortingField
+			return nil, application.ErrInvalidSortingField
 		}
 		desc := sorting.Direction == p.Descending
 
@@ -153,6 +169,7 @@ func (r *GormSubscriptionRepo) Find(ctx context.Context, q domain.SubscriptionQu
 
 	result := make([]*domain.Subscription, 0, len(models))
 	for _, m := range models {
+
 		result = append(result, m.ToDomain())
 	}
 	return result, nil
@@ -315,7 +332,7 @@ func (r *GormSubscriptionRepo) withRetry(ctx context.Context, op func() error) e
 		}
 		return nil
 	}
-	return NewErrorRetriesExceeded(lastErr)
+	return application.NewErrorRetriesExceeded(lastErr)
 }
 
 func isRetryableError(err error) bool {

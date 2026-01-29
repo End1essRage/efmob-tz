@@ -13,10 +13,10 @@ type DeleteSubscriptionCommand struct {
 }
 
 type DeleteSubscriptionHandler struct {
-	repo domain.SubscriptionRepository
+	repo domain.SubscriptionRepositoryWithTx
 }
 
-func NewDeleteSubscriptionHandler(repo domain.SubscriptionRepository) *DeleteSubscriptionHandler {
+func NewDeleteSubscriptionHandler(repo domain.SubscriptionRepositoryWithTx) *DeleteSubscriptionHandler {
 	return &DeleteSubscriptionHandler{repo: repo}
 }
 
@@ -27,7 +27,22 @@ func (h *DeleteSubscriptionHandler) Handle(ctx context.Context, cmd DeleteSubscr
 		Ctx:  ctx,
 	})
 
-	err := h.repo.Delete(ctx, cmd.ID)
+	err := h.repo.RunInTransaction(ctx, func(tx domain.TxSubscriptionRepository) error {
+		// создаём подписку
+		if err := tx.Delete(ctx, cmd.ID); err != nil {
+			return err
+		}
+
+		// создаем событие
+		event := domain.SubDeletedEvent{
+			Id: cmd.ID,
+		}
+		if err := tx.CreateEvent(ctx, event); err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
 		log.Errorf("deleting error: %v", err)
 	}

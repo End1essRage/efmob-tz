@@ -11,8 +11,8 @@ import (
 	l "github.com/end1essrage/efmob-tz/pkg/common/logger"
 	common_metrics "github.com/end1essrage/efmob-tz/pkg/common/metrics"
 	"github.com/end1essrage/efmob-tz/pkg/subs/application/container"
-	"github.com/end1essrage/efmob-tz/pkg/subs/domain"
 	subs_repo "github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/persistance/subs"
+	"github.com/end1essrage/efmob-tz/pkg/subs/infrastructure/publisher"
 	subs_http "github.com/end1essrage/efmob-tz/pkg/subs/interfaces/http"
 	subs_metrics "github.com/end1essrage/efmob-tz/pkg/subs/metrics"
 	"github.com/go-chi/chi/v5"
@@ -85,8 +85,6 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	log := l.Logger().Log("main", "createSubsMicroservice")
 
 	// бд
-	var repo domain.SubscriptionRepository
-	var statsRepo domain.SubscriptionStatsRepository
 	var cleanupDB func()
 
 	dsn := cfg.PostgresDSN
@@ -107,8 +105,6 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 	}
 
 	pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
-	repo = pgRepo
-	statsRepo = pgRepo
 
 	// Если нужно закрывать соединение при shutdown
 	sqlDB, err := gormDB.DB()
@@ -118,7 +114,7 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 		}
 	}
 
-	di := container.NewContainer(repo, statsRepo)
+	di := container.NewContainer(pgRepo, pgRepo, pgRepo)
 
 	log.Info("di контейнер собран")
 
@@ -134,6 +130,12 @@ func createSubsMicroservice(cfg *Config) (*chi.Mux, func()) {
 
 	subs_http.AddRoutes(r, h)
 	log.Info("роуты созданы")
+
+	// создаем и запускаем EventWorker
+	publisher := publisher.NewMockPublisher()
+	worker := subs_repo.NewEventWorker(gormDB, publisher, 5*time.Second, 100)
+	go worker.Run(context.Background()) // запускаем в отдельной горутине
+	log.Info("EventWorker запущен")
 
 	cleanup := func() {
 		log.Info("очистка зависимостей")

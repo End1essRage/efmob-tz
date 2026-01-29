@@ -12,15 +12,14 @@ type SubscriptionModel struct {
 	UserID      uuid.UUID  `gorm:"type:uuid;not null;index"`
 	ServiceName string     `gorm:"type:text;not null;index"`
 	Price       int        `gorm:"not null"`
-	StartDate   time.Time  `gorm:"not null"`
-	EndDate     *time.Time `gorm:""`
+	StartDate   time.Time  `gorm:"not null;index"`
+	EndDate     *time.Time `gorm:"index"`
 	CreatedAt   time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
 
-	Version int `gorm:"not null;default:1"` // <- добавляем версию
+	Version int `gorm:"not null;default:1"`
 }
 
-// Таблица будет называться subscriptions
 func (SubscriptionModel) TableName() string {
 	return "subscriptions"
 }
