@@ -114,18 +114,16 @@ func createSubsMicroservice(ctx context.Context, cfg *Config) (*chi.Mux, []func(
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 
+	pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
+
 	// выключаем миграцию в проде
 	if common.ENV(cfg.Env) != common.ENV_PROD {
-		// Авто-миграция таблицы subscriptions
-		err = gormDB.AutoMigrate(&subs_repo.SubscriptionModel{})
-		if err != nil {
-			log.Fatalf("failed to auto-migrate subscriptions: %v", err)
+		// Авто-миграция
+		if err := pgRepo.Migrate(); err != nil {
+			log.Fatalf("failed to auto-migrate: %v", err)
 		}
 	}
 
-	pgRepo := subs_repo.NewGormSubscriptionRepo(gormDB)
-
-	// Если нужно закрывать соединение при shutdown
 	sqlDB, err := gormDB.DB()
 	if err == nil {
 		// регистрируем очистку подключения

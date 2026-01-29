@@ -5,7 +5,8 @@
 4. task up
 
 ## ENV
-1. DEV - внешние сервисы(postgres) запускается как test-container
+1. DEV - локальный запуск (требует наличие docker на хосте)
+  - внешние сервисы(postgres) запускается как test-container
 2. TEST - внешние сервисы(postgres) запускается через docker-compose
 2. PROD - выключена миграция
 
